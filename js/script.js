@@ -1,123 +1,175 @@
 /* =========================================================
-   FOOT AFRIQUE ANALYSE — script.js
+   JOMION-SPORT — script.js
    JavaScript vanilla, sans dépendance externe.
    ========================================================= */
 
-/* ---------------------------------------------------------
-   1. DONNÉES MODIFIABLES
+/* ===========================================================
+   1. AJOUTER OU MODIFIER LES PRONOSTICS ICI
    -----------------------------------------------------------
-   Pour ajouter/retirer un pronostic ou un article, il suffit
-   de modifier les tableaux ci-dessous. Aucune autre partie du
-   code n'a besoin d'être touchée.
-   --------------------------------------------------------- */
+   Le tableau PRONOSTICS est actuellement VIDE : c'est normal,
+   il est prêt à recevoir vos vrais pronostics. Le site
+   affichera automatiquement un message "rien à afficher pour
+   le moment" tant que ce tableau est vide.
+
+   Pour ajouter un pronostic, copiez le modèle ci-dessous entre
+   les crochets [ ] et remplissez chaque champ. Séparez
+   plusieurs pronostics par une virgule.
+
+   MODÈLE (à copier-coller) :
+   {
+     sport: "Football",              // "Football", "Basketball", "Tennis" ou un autre sport
+     competition: "Premier League",
+     equipe1: "Équipe ou joueur A",
+     equipe2: "Équipe ou joueur B",
+     date: "13 août 2026",
+     heure: "20:00",
+     pronostic: "Plus de 2,5 buts",
+     cote: "",                        // facultatif, ex. "1,85" — laissez "" si inconnu
+     confiance: 75,                   // un nombre entre 0 et 100
+     analyse: "Analyse courte du match ou de la rencontre.",
+     statut: "À venir"                // "À venir", "Terminé" ou "Annulé"
+   }
+   =========================================================== */
 
 const PRONOSTICS = [
-  {
-    competition: "CAN 2026 — Phase de groupes",
-    date: "14 août 2026",
-    heure: "20:00 GMT",
-    equipeA: "Sénégal",
-    equipeB: "Maroc",
-    type: "Double chance : Maroc ou nul",
-    analyse: "Le Maroc n'a perdu aucun de ses 5 derniers matches officiels et possède la meilleure défense de la phase de groupes. Le Sénégal reste dangereux en contre-attaque.",
-    confiance: "medium" // "high" | "medium" | "low"
-  },
-  {
-    competition: "Ligue 1",
-    date: "16 août 2026",
-    heure: "17:00 GMT",
-    equipeA: "PSG",
-    equipeB: "Marseille",
-    type: "Plus de 2,5 buts",
-    analyse: "Les 4 dernières confrontations directes entre ces deux équipes ont toutes dépassé 2,5 buts. Les deux attaques sont en forme.",
-    confiance: "high"
-  },
-  {
-    competition: "Premier League",
-    date: "17 août 2026",
-    heure: "16:30 GMT",
-    equipeA: "Arsenal",
-    equipeB: "Chelsea",
-    type: "BTTS (les deux équipes marquent)",
-    analyse: "Chelsea encaisse régulièrement à l'extérieur cette saison, mais Arsenal n'a gardé sa cage inviolée qu'une fois sur les 5 derniers matches à domicile.",
-    confiance: "low"
-  }
+  // Exemple désactivé — décommentez et modifiez pour vous en servir de modèle :
+  // {
+  //   sport: "Football",
+  //   competition: "Premier League",
+  //   equipe1: "Équipe A",
+  //   equipe2: "Équipe B",
+  //   date: "13 août 2026",
+  //   heure: "20:00",
+  //   pronostic: "Plus de 2,5 buts",
+  //   cote: "1,85",
+  //   confiance: 75,
+  //   analyse: "Analyse du match...",
+  //   statut: "À venir"
+  // },
 ];
 
+/* ===========================================================
+   2. AJOUTER OU MODIFIER LES ARTICLES ICI
+   -----------------------------------------------------------
+   Même principe que pour les pronostics : le tableau ARTICLES
+   est vide par défaut. Copiez le modèle ci-dessous pour ajouter
+   un article.
+
+   MODÈLE (à copier-coller) :
+   {
+     titre: "Titre de l'article",
+     sport: "Football",
+     categorie: "Actualité",          // ex. "Actualité", "Guide", "Analyse"
+     date: "12 août 2026",
+     image: "",                        // chemin vers une image, ex. "assets/articles/mon-image.jpg" — laissez "" pour un visuel par défaut
+     resume: "Résumé court affiché sur la carte de l'article.",
+     contenu: "Texte complet de l'article (facultatif pour l'instant).",
+     auteur: "Nom de l'auteur"
+   }
+   =========================================================== */
+
 const ARTICLES = [
-  {
-    date: "12 août 2026",
-    titre: "CAN 2026 : comment se dessinent les favoris avant le coup d'envoi",
-    resume: "Retour sur la préparation des principales sélections africaines et sur les statistiques qui permettent d'anticiper la phase de groupes.",
-    tag: "Actualité"
-  },
-  {
-    date: "9 août 2026",
-    titre: "BTTS et Over/Under : les bases pour lire une statistique de match",
-    resume: "Un point pédagogique sur deux indicateurs souvent cités dans nos analyses, avec des exemples concrets tirés de championnats africains et européens.",
-    tag: "Guide"
-  },
-  {
-    date: "5 août 2026",
-    titre: "L'avantage du terrain en Ligue des champions africaine : mythe ou réalité ?",
-    resume: "Nous avons étudié les résultats domicile/extérieur des trois dernières éditions pour mesurer le véritable poids du facteur terrain.",
-    tag: "Analyse"
-  }
+  // Exemple désactivé — décommentez et modifiez pour vous en servir de modèle :
+  // {
+  //   titre: "Titre de l'article",
+  //   sport: "Football",
+  //   categorie: "Actualité",
+  //   date: "12 août 2026",
+  //   image: "",
+  //   resume: "Résumé court affiché sur la carte de l'article.",
+  //   contenu: "Texte complet de l'article (facultatif pour l'instant).",
+  //   auteur: "Rédaction Jomion-Sport"
+  // },
 ];
 
 /* ---------------------------------------------------------
-   2. UTILITAIRES
+   3. UTILITAIRES
    --------------------------------------------------------- */
 
-const CONFIDENCE_LABELS = {
+const SPORT_ICONS = {
+  football: "⚽",
+  basketball: "🏀",
+  tennis: "🎾"
+};
+
+function sportSlug(sport) {
+  return (sport || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function sportIcon(sport) {
+  return SPORT_ICONS[sportSlug(sport)] || "🏅";
+}
+
+function confidenceLevel(value) {
+  const n = Number(value) || 0;
+  if (n >= 70) return "high";
+  if (n >= 40) return "medium";
+  return "low";
+}
+
+const CONFIDENCE_TEXT = {
   high: "Confiance élevée",
   medium: "Confiance moyenne",
   low: "Confiance faible"
 };
 
-function confidenceSegments(level) {
-  const totals = { high: 3, medium: 2, low: 1 };
-  const filled = totals[level] || 1;
+function confidenceSegments(value) {
+  const n = Math.max(0, Math.min(100, Number(value) || 0));
+  const filled = Math.round(n / 20); // 5 segments
   let html = '<div class="confidence__bar">';
-  for (let i = 1; i <= 3; i++) {
+  for (let i = 1; i <= 5; i++) {
     html += `<span class="confidence__seg${i <= filled ? " is-filled" : ""}"></span>`;
   }
   html += "</div>";
   return html;
 }
 
+function statutClass(statut) {
+  const s = sportSlug(statut);
+  if (s.includes("termine")) return "is-termine";
+  if (s.includes("annule")) return "is-annule";
+  return "is-avenir";
+}
+
 function escapeHTML(str) {
   const div = document.createElement("div");
-  div.textContent = str;
+  div.textContent = str == null ? "" : str;
   return div.innerHTML;
 }
 
 /* ---------------------------------------------------------
-   3. GÉNÉRATION DES CARTES "BILLET DE MATCH"
+   4. GÉNÉRATION DES CARTES "BILLET DE MATCH"
    --------------------------------------------------------- */
 
 function renderTicketCard(p) {
+  const level = confidenceLevel(p.confiance);
   return `
-    <article class="ticket-card">
+    <article class="ticket-card" data-sport="${sportSlug(p.sport)}">
       <div class="ticket-card__top">
         <span class="ticket-card__competition">${escapeHTML(p.competition)}</span>
         <span>${escapeHTML(p.date)} · ${escapeHTML(p.heure)}</span>
       </div>
       <div class="ticket-card__body">
+        <div class="ticket-card__badges">
+          <span class="sport-badge">${sportIcon(p.sport)} ${escapeHTML(p.sport)}</span>
+          ${p.statut ? `<span class="status-badge ${statutClass(p.statut)}">${escapeHTML(p.statut)}</span>` : ""}
+        </div>
         <div class="ticket-card__teams">
-          <span>${escapeHTML(p.equipeA)}</span>
+          <span>${escapeHTML(p.equipe1)}</span>
           <span class="vs">vs</span>
-          <span>${escapeHTML(p.equipeB)}</span>
+          <span>${escapeHTML(p.equipe2)}</span>
         </div>
         <div class="ticket-card__pick">
-          <strong>Pronostic :</strong> ${escapeHTML(p.type)}
+          <strong>Pronostic :</strong> ${escapeHTML(p.pronostic)}
+          ${p.cote ? `<div class="ticket-card__odds">Cote indicative : ${escapeHTML(p.cote)}</div>` : ""}
         </div>
         <p class="ticket-card__analysis">${escapeHTML(p.analyse)}</p>
       </div>
       <div class="ticket-card__perf"></div>
-      <div class="confidence confidence--${p.confiance}">
+      <div class="confidence confidence--${level}">
         <div class="confidence__label">
-          <span>${CONFIDENCE_LABELS[p.confiance]}</span>
+          <span>${CONFIDENCE_TEXT[level]}</span>
+          <strong>${escapeHTML(p.confiance)}%</strong>
         </div>
         ${confidenceSegments(p.confiance)}
       </div>
@@ -126,10 +178,12 @@ function renderTicketCard(p) {
 
 function renderArticleCard(a) {
   return `
-    <article class="article-card">
-      <div class="article-card__media" aria-hidden="true">${escapeHTML(a.tag)}</div>
+    <article class="article-card" data-sport="${sportSlug(a.sport)}">
+      <div class="article-card__media" aria-hidden="true">
+        ${a.image ? `<img src="${escapeHTML(a.image)}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;">` : `${sportIcon(a.sport)} ${escapeHTML(a.categorie || a.sport || "")}`}
+      </div>
       <div class="article-card__body">
-        <span class="article-card__date">${escapeHTML(a.date)}</span>
+        <span class="article-card__date">${escapeHTML(a.date)} · ${escapeHTML(a.sport)}${a.auteur ? " · " + escapeHTML(a.auteur) : ""}</span>
         <h3 class="article-card__title">${escapeHTML(a.titre)}</h3>
         <p class="article-card__excerpt">${escapeHTML(a.resume)}</p>
         <a href="actualites.html" class="btn btn--outline" style="align-self:flex-start;">Lire l'article</a>
@@ -137,22 +191,90 @@ function renderArticleCard(a) {
     </article>`;
 }
 
+function emptyState(message) {
+  return `<div class="empty-state"><strong>Rien à afficher pour le moment</strong>${escapeHTML(message)}</div>`;
+}
+
 function mountLists() {
   const pronosMount = document.querySelector("[data-mount='pronostics']");
   if (pronosMount) {
     const limit = Number(pronosMount.dataset.limit) || PRONOSTICS.length;
-    pronosMount.innerHTML = PRONOSTICS.slice(0, limit).map(renderTicketCard).join("");
+    const items = PRONOSTICS.slice(0, limit || PRONOSTICS.length);
+    pronosMount.innerHTML = items.length
+      ? items.map(renderTicketCard).join("")
+      : emptyState("Ajoutez vos pronostics dans le tableau PRONOSTICS de js/script.js.");
   }
 
   const articlesMount = document.querySelector("[data-mount='articles']");
   if (articlesMount) {
     const limit = Number(articlesMount.dataset.limit) || ARTICLES.length;
-    articlesMount.innerHTML = ARTICLES.slice(0, limit).map(renderArticleCard).join("");
+    const items = ARTICLES.slice(0, limit || ARTICLES.length);
+    articlesMount.innerHTML = items.length
+      ? items.map(renderArticleCard).join("")
+      : emptyState("Ajoutez vos articles dans le tableau ARTICLES de js/script.js.");
   }
 }
 
 /* ---------------------------------------------------------
-   4. NAVIGATION MOBILE
+   5. FILTRES PAR SPORT (onglets "Tous / Football / Basketball / Tennis")
+   --------------------------------------------------------- */
+
+function applySportFilter(mount, sport) {
+  const cards = mount.querySelectorAll(":scope > article[data-sport]");
+  let visibleCount = 0;
+  cards.forEach((card) => {
+    const match = sport === "tous" || card.dataset.sport === sport;
+    card.style.display = match ? "" : "none";
+    if (match) visibleCount++;
+  });
+  let empty = mount.querySelector(".empty-state[data-filter-empty]");
+  if (visibleCount === 0 && cards.length > 0) {
+    if (!empty) {
+      empty = document.createElement("div");
+      empty.className = "empty-state";
+      empty.setAttribute("data-filter-empty", "true");
+      empty.innerHTML = "<strong>Aucun résultat</strong>Aucun contenu pour ce sport pour le moment.";
+      mount.appendChild(empty);
+    }
+  } else if (empty) {
+    empty.remove();
+  }
+}
+
+function initSportTabs() {
+  const tabsContainers = document.querySelectorAll(".sport-tabs");
+  if (!tabsContainers.length) return;
+
+  tabsContainers.forEach((tabs) => {
+    const section = tabs.closest("section");
+    const mount = section ? section.querySelector("[data-mount][data-filterable]") : null;
+    if (!mount) return;
+
+    function selectSport(sport) {
+      tabs.querySelectorAll(".sport-tab").forEach((btn) => {
+        const isActive = btn.dataset.sportFilter === sport;
+        btn.classList.toggle("is-active", isActive);
+        btn.setAttribute("aria-selected", String(isActive));
+      });
+      applySportFilter(mount, sport);
+    }
+
+    tabs.querySelectorAll(".sport-tab").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        selectSport(btn.dataset.sportFilter);
+        history.replaceState(null, "", "#" + btn.dataset.sportFilter);
+      });
+    });
+
+    // Permet d'arriver directement filtré via un lien du type pronostics.html#basketball
+    const initial = window.location.hash.replace("#", "") || "tous";
+    const validInitial = tabs.querySelector(`[data-sport-filter="${initial}"]`) ? initial : "tous";
+    selectSport(validInitial);
+  });
+}
+
+/* ---------------------------------------------------------
+   6. NAVIGATION MOBILE
    --------------------------------------------------------- */
 
 function initNav() {
@@ -184,7 +306,7 @@ function initNav() {
 }
 
 /* ---------------------------------------------------------
-   5. ACCORDÉON (page Guide)
+   7. ACCORDÉON (page Guide)
    --------------------------------------------------------- */
 
 function initAccordion() {
@@ -200,7 +322,7 @@ function initAccordion() {
 }
 
 /* ---------------------------------------------------------
-   6. FORMULAIRE DE CONTACT (visuel uniquement)
+   8. FORMULAIRE DE CONTACT (visuel uniquement)
    -----------------------------------------------------------
    GitHub Pages n'exécute pas de code côté serveur : ce
    formulaire ne peut donc pas envoyer réellement de message.
@@ -225,7 +347,7 @@ function initContactForm() {
 }
 
 /* ---------------------------------------------------------
-   7. ANNÉE COURANTE DANS LE PIED DE PAGE
+   9. ANNÉE COURANTE DANS LE PIED DE PAGE
    --------------------------------------------------------- */
 
 function initFooterYear() {
@@ -240,8 +362,10 @@ function initFooterYear() {
 
 document.addEventListener("DOMContentLoaded", () => {
   mountLists();
+  initSportTabs();
   initNav();
   initAccordion();
   initContactForm();
   initFooterYear();
 });
+                                                            
