@@ -3,18 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Actualités football — Foot Afrique Analyse</title>
-<meta name="description" content="Toutes les actualités, décryptages et articles pédagogiques de Foot Afrique Analyse sur le football africain et international.">
-<link rel="canonical" href="https://votre-nom-utilisateur.github.io/foot-afrique-analyse/actualites.html">
+<title>Actualités sportives | Jomion-Sport</title>
+<meta name="description" content="Toutes les actualités, décryptages et articles pédagogiques de Jomion-Sport sur le football, le basketball, le tennis et d'autres sports.">
+<link rel="canonical" href="https://votre-nom-utilisateur.github.io/jomion-sport/actualites.html">
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="Foot Afrique Analyse">
-<meta property="og:title" content="Actualités football — Foot Afrique Analyse">
-<meta property="og:description" content="Articles et décryptages sur le football africain et international.">
-<meta property="og:url" content="https://votre-nom-utilisateur.github.io/foot-afrique-analyse/actualites.html">
+<meta property="og:site_name" content="Jomion-Sport">
+<meta property="og:title" content="Actualités sportives | Jomion-Sport">
+<meta property="og:description" content="Articles et décryptages sur le football, le basketball, le tennis et d'autres sports.">
+<meta property="og:url" content="https://votre-nom-utilisateur.github.io/jomion-sport/actualites.html">
 <meta property="og:locale" content="fr_FR">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -22,19 +23,19 @@
 
 <div class="ticker" aria-hidden="true">
   <div class="ticker__track">
-    <span>CAN 2026</span><span>Ligue 1</span><span>Premier League</span><span>Liga</span>
-    <span>Ligue des champions africaine</span><span>Serie A</span>
-    <span>CAN 2026</span><span>Ligue 1</span><span>Premier League</span><span>Liga</span>
-    <span>Ligue des champions africaine</span><span>Serie A</span>
+    <span>Football</span><span>Basketball</span><span>Tennis</span><span>CAN 2026</span>
+    <span>Premier League</span><span>NBA</span><span>ATP / WTA</span><span>Ligue 1</span>
+    <span>Football</span><span>Basketball</span><span>Tennis</span><span>CAN 2026</span>
+    <span>Premier League</span><span>NBA</span><span>ATP / WTA</span><span>Ligue 1</span>
   </div>
 </div>
 
 <header class="site-header">
   <div class="header-inner">
     <a class="brand" href="index.html">
-      <span class="brand__crest" aria-hidden="true">FA</span>
+      <span class="brand__crest" aria-hidden="true">JS</span>
       <span class="brand__text">
-        <span class="brand__name">Foot Afrique Analyse</span>
+        <span class="brand__name">Jomion-Sport</span>
         <span class="brand__tagline">Analyses · Statistiques · Pronostics</span>
       </span>
     </a>
@@ -49,7 +50,7 @@
         <li><a href="analyses.html">Analyses</a></li>
         <li><a href="actualites.html" aria-current="page">Actualités</a></li>
         <li><a href="guide.html">Guide</a></li>
-        <li><a href="apropos.html">À propos</a></li>
+        <li><a href="a-propos.html">À propos</a></li>
         <li><a href="contact.html">Contact</a></li>
       </ul>
     </nav>
@@ -62,13 +63,19 @@
     <div class="container" style="display:block;">
       <p class="hero__eyebrow">Le mag</p>
       <h1 style="max-width:none;">Actualités &amp; articles</h1>
-      <p class="hero__lead">Décryptages, actualités et contenus pédagogiques sur le football africain et international.</p>
+      <p class="hero__lead">Décryptages, actualités et contenus pédagogiques sur le football, le basketball, le tennis et d'autres sports.</p>
     </div>
   </section>
 
   <section class="section">
     <div class="container">
-      <div class="grid grid--3" data-mount="articles"></div>
+      <div class="sport-tabs" role="tablist" aria-label="Filtrer les articles par sport">
+        <button class="sport-tab is-active" data-sport-filter="tous" role="tab" aria-selected="true">Tous</button>
+        <button class="sport-tab" data-sport-filter="football" role="tab" aria-selected="false">⚽ Football</button>
+        <button class="sport-tab" data-sport-filter="basketball" role="tab" aria-selected="false">🏀 Basketball</button>
+        <button class="sport-tab" data-sport-filter="tennis" role="tab" aria-selected="false">🎾 Tennis</button>
+      </div>
+      <div class="grid grid--3" data-mount="articles" data-filterable="true"></div>
     </div>
   </section>
 
@@ -84,8 +91,8 @@
   <div class="container">
     <div class="footer-grid">
       <div>
-        <h3>Foot Afrique Analyse</h3>
-        <p style="opacity:0.75;font-size:0.9rem;">Média indépendant d'analyses, de statistiques et de pronostics football.</p>
+        <h3>Jomion-Sport</h3>
+        <p style="opacity:0.75;font-size:0.9rem;">Média indépendant d'analyses, de statistiques et de pronostics sportifs.</p>
       </div>
       <div>
         <h3>Navigation</h3>
@@ -99,13 +106,13 @@
       <div>
         <h3>Site</h3>
         <ul>
-          <li><a href="apropos.html">À propos</a></li>
+          <li><a href="a-propos.html">À propos</a></li>
           <li><a href="contact.html">Contact</a></li>
         </ul>
       </div>
     </div>
     <div class="footer-bottom">
-      <span>© <span data-year></span> Foot Afrique Analyse. Site indépendant, non affilié à un bookmaker.</span>
+      <span>© <span data-year></span> Jomion-Sport. Site indépendant, non affilié à un bookmaker.</span>
       <span>Jouer comporte des risques : jouez de manière responsable.</span>
     </div>
   </div>
