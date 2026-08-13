@@ -1,5 +1,5 @@
 /* =========================================================
-   FOOT AFRIQUE ANALYSE — style.css
+   JOMION-SPORT — style.css
    Charte graphique : "billet de match / tableau de score"
    ========================================================= */
 
@@ -309,12 +309,49 @@ button{font-family:inherit;cursor:pointer;}
   display:flex;justify-content:space-between;font-size:0.78rem;
   text-transform:uppercase;letter-spacing:0.05em;color:var(--gray-500);margin-bottom:6px;
 }
+.confidence__label strong{font-family:var(--font-display);color:var(--navy-900);font-size:0.95rem;text-transform:none;letter-spacing:0;}
 .confidence__bar{display:flex;gap:4px;}
 .confidence__seg{height:8px;flex:1;background:var(--gray-100);border-radius:2px;}
 .confidence__seg.is-filled{background:var(--conf-color,var(--blue-600));}
 .confidence--high{--conf-color:var(--green-600);}
 .confidence--medium{--conf-color:var(--amber-600);}
 .confidence--low{--conf-color:var(--red-600);}
+
+/* Badges sport / statut sur les cartes */
+.ticket-card__badges{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;}
+.sport-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  background:var(--gray-50);border:1px solid var(--gray-100);
+  color:var(--navy-900);font-size:0.76rem;font-family:var(--font-display);
+  text-transform:uppercase;letter-spacing:0.03em;padding:3px 9px;border-radius:999px;
+}
+.status-badge{
+  display:inline-flex;align-items:center;
+  font-size:0.76rem;font-family:var(--font-display);text-transform:uppercase;letter-spacing:0.03em;
+  padding:3px 9px;border-radius:999px;color:#fff;background:var(--gray-500);
+}
+.status-badge.is-avenir{background:var(--blue-600);}
+.status-badge.is-termine{background:var(--gray-500);}
+.status-badge.is-annule{background:var(--red-600);}
+.ticket-card__odds{font-size:0.82rem;color:var(--gray-500);margin-top:4px;}
+
+/* Onglets de filtre par sport */
+.sport-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px;}
+.sport-tab{
+  background:var(--white);border:1px solid var(--gray-100);color:var(--gray-700);
+  font-family:var(--font-display);font-size:0.95rem;padding:9px 16px;border-radius:999px;
+  transition:background .15s ease, color .15s ease, border-color .15s ease;
+}
+.sport-tab:hover{border-color:var(--blue-600);}
+.sport-tab.is-active{background:var(--navy-900);border-color:var(--navy-900);color:#fff;}
+
+/* État vide */
+.empty-state{
+  grid-column:1/-1;
+  text-align:center;padding:40px 20px;color:var(--gray-500);
+  background:var(--white);border:1px dashed var(--gray-100);border-radius:var(--radius-m);
+}
+.empty-state strong{display:block;color:var(--navy-900);font-family:var(--font-display);font-size:1.1rem;margin-bottom:4px;}
 
 .disclaimer{
   font-size:0.82rem;color:var(--gray-500);
@@ -348,7 +385,9 @@ button{font-family:inherit;cursor:pointer;}
   background:var(--navy-900);color:var(--white);
   border-radius:var(--radius-m);padding:22px;
   text-align:center;
+  transition:transform .15s ease, background .15s ease;
 }
+a.stat-box:hover{background:var(--navy-800);transform:translateY(-2px);}
 .stat-box__num{font-family:var(--font-display);font-size:2.4rem;color:var(--blue-400);}
 .stat-box__label{font-size:0.85rem;color:var(--gray-100);opacity:0.8;}
 
@@ -426,5 +465,5 @@ button{font-family:inherit;cursor:pointer;}
 }
 @media (min-width:1200px){
   .section{padding:88px 0;}
-  }
-  
+   }
+                               
