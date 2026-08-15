@@ -149,3 +149,15 @@ Le site dispose maintenant d'une page `admin.html`, distincte des pages publique
 - **Le site public (`index.html`, `pronostics.html`, etc.) n'affiche pas encore ces données Supabase** : pour l'instant il continue à lire les tableaux `PRONOSTICS`/`ARTICLES` de `js/script.js` (voir sections 4 et 5). Le branchement du site public sur Supabase est la prochaine étape prévue — vos ancien tableaux continueront de fonctionner jusque-là.
 - Le bandeau de compétitions défilant, la rubrique Matchs/Scores et la gestion des Sports/Partenaires ne sont pas encore dans cette interface : ce sont les étapes suivantes.
 
+## 11. Le site public lit maintenant Supabase (avec repli automatique)
+
+`index.html`, `pronostics.html` et `actualites.html` chargent désormais `js/supabase-client.js` et affichent en priorité les pronostics et articles **publiés** stockés dans Supabase (ceux que vous gérez depuis `admin.html`).
+
+**Ce qui a changé dans `js/script.js` :**
+- Les tableaux `PRONOSTICS` et `ARTICLES` ne sont plus la source principale : ils ne servent plus qu'en **secours**, utilisés automatiquement si Supabase est injoignable (mauvaise connexion, clé pas encore configurée, etc.). Le site continue donc de fonctionner même sans Supabase.
+- Un pronostic ou un article reste invisible sur le site public tant qu'il n'est pas basculé sur « Publié » dans `admin.html`.
+- Correction au passage : sur `index.html`, l'aperçu du bandeau « hero » et la liste complète des pronostics utilisaient auparavant le même sélecteur et seul le premier bloc s'affichait correctement — c'est maintenant corrigé, les deux blocs s'alimentent bien indépendamment.
+
+**Pas encore branché sur Supabase (prochaines étapes) :** le bandeau de compétitions défilant en haut de chaque page, et la page `analyses.html` (qui reste pour l'instant statique avec ses exemples).
+
+
