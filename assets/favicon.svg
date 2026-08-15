@@ -1,10 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <defs>
-    <linearGradient id="blueGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1B59CF"/>
-      <stop offset="45%" stop-color="#1042A4"/>
-      <stop offset="100%" stop-color="#082052"/>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1E5FE0"/>
+      <stop offset="100%" stop-color="#0A1B33"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="110" ry="110" fill="url(#blueGradient)"/>
+  <rect width="64" height="64" rx="14" fill="url(#g)"/>
+  <text x="32" y="43" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="28" fill="#ffffff" text-anchor="middle">JS</text>
 </svg>
