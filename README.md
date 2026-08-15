@@ -160,4 +160,10 @@ Le site dispose maintenant d'une page `admin.html`, distincte des pages publique
 
 **Pas encore branché sur Supabase (prochaines étapes) :** le bandeau de compétitions défilant en haut de chaque page, et la page `analyses.html` (qui reste pour l'instant statique avec ses exemples).
 
+## 12. Bandeau de compétitions dynamique
 
+Le bandeau qui défile en haut de **toutes** les pages (y compris `analyses.html`, `guide.html`, `contact.html` et `a-propos.html`, qui viennent d'être connectées à Supabase pour l'occasion) affiche désormais les compétitions **actives** de la table `competitions`, dans l'ordre de leur `ordre_affichage`.
+
+**Pour le gérer :** tout se fait depuis l'onglet **Compétitions** de `admin.html` — ajouter, modifier, activer/désactiver, changer l'ordre. Rien à toucher dans le code.
+
+**Repli automatique :** si Supabase est injoignable, une petite liste de secours codée dans `js/script.js` (`COMPETITIONS_SECOURS`) s'affiche à la place, pour que le bandeau ne soit jamais vide.
