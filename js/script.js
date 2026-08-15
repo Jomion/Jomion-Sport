@@ -4,16 +4,17 @@
    ========================================================= */
 
 /* ===========================================================
-   1. AJOUTER OU MODIFIER LES PRONOSTICS ICI
+   1. PRONOSTICS DE SECOURS (utilisés uniquement si Supabase est indisponible)
    -----------------------------------------------------------
-   Le tableau PRONOSTICS est actuellement VIDE : c'est normal,
-   il est prêt à recevoir vos vrais pronostics. Le site
-   affichera automatiquement un message "rien à afficher pour
-   le moment" tant que ce tableau est vide.
+   Depuis le branchement sur Supabase, les pronostics affichés
+   sur le site proviennent normalement de la table "pronostics"
+   de votre projet Supabase (gérée depuis admin.html). Ce
+   tableau PRONOSTICS ne sert donc plus qu'en secours : si la
+   connexion à Supabase échoue pour une raison ou une autre, le
+   site l'utilise automatiquement pour continuer à fonctionner.
 
-   Pour ajouter un pronostic, copiez le modèle ci-dessous entre
-   les crochets [ ] et remplissez chaque champ. Séparez
-   plusieurs pronostics par une virgule.
+   Vous pouvez laisser ce tableau vide, ou y garder quelques
+   pronostics de secours. Le format reste le même :
 
    MODÈLE (à copier-coller) :
    {
@@ -49,11 +50,12 @@ const PRONOSTICS = [
 ];
 
 /* ===========================================================
-   2. AJOUTER OU MODIFIER LES ARTICLES ICI
+   2. ARTICLES DE SECOURS (utilisés uniquement si Supabase est indisponible)
    -----------------------------------------------------------
-   Même principe que pour les pronostics : le tableau ARTICLES
-   est vide par défaut. Copiez le modèle ci-dessous pour ajouter
-   un article.
+   Même principe que pour les pronostics : les articles publiés
+   proviennent normalement de la table "articles" de Supabase
+   (gérée depuis admin.html). Ce tableau ARTICLES ne sert qu'en
+   secours si Supabase est injoignable.
 
    MODÈLE (à copier-coller) :
    {
@@ -195,23 +197,128 @@ function emptyState(message) {
   return `<div class="empty-state"><strong>Rien à afficher pour le moment</strong>${escapeHTML(message)}</div>`;
 }
 
-function mountLists() {
-  const pronosMount = document.querySelector("[data-mount='pronostics']");
-  if (pronosMount) {
-    const limit = Number(pronosMount.dataset.limit) || PRONOSTICS.length;
-    const items = PRONOSTICS.slice(0, limit || PRONOSTICS.length);
-    pronosMount.innerHTML = items.length
-      ? items.map(renderTicketCard).join("")
-      : emptyState("Ajoutez vos pronostics dans le tableau PRONOSTICS de js/script.js.");
+/* ---------------------------------------------------------
+   3 bis. CONNEXION AU SITE PUBLIC ↔ SUPABASE
+   -----------------------------------------------------------
+   Ces fonctions vont chercher les pronostics/articles publiés
+   dans Supabase. Si Supabase n'est pas configuré sur cette page
+   (fichier js/supabase-client.js absent) ou injoignable, elles
+   renvoient "null" : mountLists() bascule alors automatiquement
+   sur les tableaux PRONOSTICS / ARTICLES de secours définis plus
+   haut, pour que le site continue de fonctionner dans tous les cas.
+   --------------------------------------------------------- */
+
+function formatDateFr(isoDate) {
+  if (!isoDate) return "";
+  try {
+    const d = new Date(isoDate + "T00:00:00");
+    return d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+  } catch (e) {
+    return isoDate;
+  }
+}
+
+function formatHeure(heure) {
+  return heure ? heure.slice(0, 5) : "";
+}
+
+function mapPronosticFromSupabase(row) {
+  return {
+    sport: (row.sports && row.sports.nom) || "",
+    competition: (row.competitions && row.competitions.nom) || "",
+    equipe1: row.equipe1,
+    equipe2: row.equipe2,
+    date: formatDateFr(row.date_match),
+    heure: formatHeure(row.heure_match),
+    pronostic: row.pronostic,
+    cote: row.cote || "",
+    confiance: row.confiance,
+    analyse: row.texte_analyse || "",
+    statut: row.statut
+  };
+}
+
+function mapArticleFromSupabase(row) {
+  return {
+    titre: row.titre,
+    sport: (row.sports && row.sports.nom) || "",
+    categorie: row.categorie || "",
+    date: formatDateFr(row.date_publication),
+    image: row.image_url || "",
+    resume: row.resume || "",
+    contenu: row.contenu || "",
+    auteur: row.auteur || ""
+  };
+}
+
+async function fetchPronosticsFromSupabase(limit) {
+  if (typeof supabaseClient === "undefined") return null;
+  try {
+    let query = supabaseClient
+      .from("pronostics")
+      .select("*, sports(nom, icone), competitions(nom)")
+      .eq("publie", true)
+      .order("date_match", { ascending: true });
+    if (limit) query = query.limit(limit);
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data || []).map(mapPronosticFromSupabase);
+  } catch (err) {
+    console.warn("Supabase indisponible pour les pronostics, utilisation des données de secours.", err);
+    return null;
+  }
+}
+
+async function fetchArticlesFromSupabase(limit) {
+  if (typeof supabaseClient === "undefined") return null;
+  try {
+    let query = supabaseClient
+      .from("articles")
+      .select("*, sports(nom, icone)")
+      .eq("statut", "publié")
+      .order("date_publication", { ascending: false });
+    if (limit) query = query.limit(limit);
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data || []).map(mapArticleFromSupabase);
+  } catch (err) {
+    console.warn("Supabase indisponible pour les articles, utilisation des données de secours.", err);
+    return null;
+  }
+}
+
+async function mountLists() {
+  // Une page peut afficher plusieurs blocs de pronostics (ex. l'accueil :
+  // un aperçu dans le bandeau "hero" + la liste complète plus bas) : on
+  // récupère les données une seule fois, puis on découpe pour chaque bloc.
+  const pronosMounts = document.querySelectorAll("[data-mount='pronostics']");
+  if (pronosMounts.length) {
+    const limits = Array.from(pronosMounts).map((el) => Number(el.dataset.limit) || 0);
+    const maxLimit = limits.includes(0) ? null : Math.max(...limits);
+    let source = await fetchPronosticsFromSupabase(maxLimit);
+    if (!source) source = PRONOSTICS;
+    pronosMounts.forEach((mount) => {
+      const limit = Number(mount.dataset.limit) || source.length;
+      const items = source.slice(0, limit);
+      mount.innerHTML = items.length
+        ? items.map(renderTicketCard).join("")
+        : emptyState("Aucun pronostic publié pour le moment.");
+    });
   }
 
-  const articlesMount = document.querySelector("[data-mount='articles']");
-  if (articlesMount) {
-    const limit = Number(articlesMount.dataset.limit) || ARTICLES.length;
-    const items = ARTICLES.slice(0, limit || ARTICLES.length);
-    articlesMount.innerHTML = items.length
-      ? items.map(renderArticleCard).join("")
-      : emptyState("Ajoutez vos articles dans le tableau ARTICLES de js/script.js.");
+  const articlesMounts = document.querySelectorAll("[data-mount='articles']");
+  if (articlesMounts.length) {
+    const limits = Array.from(articlesMounts).map((el) => Number(el.dataset.limit) || 0);
+    const maxLimit = limits.includes(0) ? null : Math.max(...limits);
+    let source = await fetchArticlesFromSupabase(maxLimit);
+    if (!source) source = ARTICLES;
+    articlesMounts.forEach((mount) => {
+      const limit = Number(mount.dataset.limit) || source.length;
+      const items = source.slice(0, limit);
+      mount.innerHTML = items.length
+        ? items.map(renderArticleCard).join("")
+        : emptyState("Aucun article publié pour le moment.");
+    });
   }
 }
 
@@ -360,12 +467,11 @@ function initFooterYear() {
    INITIALISATION
    --------------------------------------------------------- */
 
-document.addEventListener("DOMContentLoaded", () => {
-  mountLists();
+document.addEventListener("DOMContentLoaded", async () => {
+  await mountLists();
   initSportTabs();
   initNav();
   initAccordion();
   initContactForm();
   initFooterYear();
 });
-                                                            
