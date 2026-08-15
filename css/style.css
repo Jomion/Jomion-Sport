@@ -465,5 +465,4 @@ a.stat-box:hover{background:var(--navy-800);transform:translateY(-2px);}
 }
 @media (min-width:1200px){
   .section{padding:88px 0;}
-   }
-                               
+}
