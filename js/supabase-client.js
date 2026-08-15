@@ -17,7 +17,7 @@
    apparaître dans un fichier public.
    ========================================================= */
 
-const SUPABASE_URL = "https://meuqqcblvuutexewjlpq.supabase.co/rest/v1";
+const SUPABASE_URL = "https://meuqqcblvuutexewjlpq.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ldXFxY2JsdnV1dGV4ZXdqbHBxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3Mjc2MjYsImV4cCI6MjEwMjMwMzYyNn0.sXurXgIvY2Mdt_F-Ee3dLNn9suBYwkvyx0ub4maxY8w";
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
