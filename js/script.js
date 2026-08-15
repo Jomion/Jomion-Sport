@@ -369,6 +369,249 @@ async function renderTicker() {
 }
 
 /* ---------------------------------------------------------
+   PAGE MATCHS — liste des matchs à venir / en cours
+   -----------------------------------------------------------
+   Les matchs sont gérés directement dans Supabase (table
+   "matchs") — un onglet dédié dans admin.html arrivera dans une
+   prochaine étape ; en attendant, ils peuvent être ajoutés via
+   Supabase → Table Editor ou SQL Editor.
+   --------------------------------------------------------- */
+
+function mapMatchFromSupabase(row) {
+  return {
+    sport: (row.sports && row.sports.nom) || "",
+    competition: (row.competitions && row.competitions.nom) || "",
+    pays: row.pays || "",
+    equipe1: row.equipe1,
+    equipe2: row.equipe2,
+    date: formatDateFr(row.date_match),
+    dateIso: row.date_match,
+    heure: formatHeure(row.heure_match),
+    statut: row.statut
+  };
+}
+
+async function fetchMatchsAVenir() {
+  if (typeof supabaseClient === "undefined") return [];
+  try {
+    const { data, error } = await supabaseClient
+      .from("matchs")
+      .select("*, sports(nom, icone), competitions(nom)")
+      .in("statut", ["à venir", "en cours"])
+      .order("date_match", { ascending: true });
+    if (error) throw error;
+    return (data || []).map(mapMatchFromSupabase);
+  } catch (err) {
+    console.warn("Supabase indisponible pour les matchs.", err);
+    return [];
+  }
+}
+
+function renderMatchCard(m) {
+  return `
+    <article class="match-card" data-sport="${sportSlug(m.sport)}" data-pays="${escapeHTML(m.pays)}" data-competition="${escapeHTML(m.competition)}" data-date="${escapeHTML(m.dateIso)}">
+      <div class="match-card__top">
+        <span class="sport-badge">${sportIcon(m.sport)} ${escapeHTML(m.sport)}</span>
+        <span class="status-badge ${statutClass(m.statut)}">${escapeHTML(m.statut)}</span>
+      </div>
+      <div class="match-card__body">
+        <div class="match-card__competition">${escapeHTML(m.competition)}${m.pays ? " · " + escapeHTML(m.pays) : ""}</div>
+        <div class="match-card__teams">
+          <span>${escapeHTML(m.equipe1)}</span><span class="vs">vs</span><span>${escapeHTML(m.equipe2)}</span>
+        </div>
+        <div class="match-card__meta">${escapeHTML(m.date)}${m.heure ? " · " + escapeHTML(m.heure) : ""}</div>
+      </div>
+    </article>`;
+}
+
+/* Remplit un <select> avec les valeurs distinctes trouvées dans une liste,
+   en conservant l'ordre d'apparition. */
+function fillFilterSelect(selectEl, values, placeholder) {
+  const uniques = [...new Set(values.filter(Boolean))];
+  selectEl.innerHTML = `<option value="">${escapeHTML(placeholder)}</option>` +
+    uniques.map((v) => `<option value="${escapeHTML(v)}">${escapeHTML(v)}</option>`).join("");
+}
+
+/* Active le bon onglet sport au chargement, selon l'ancre de l'URL
+   (ex. matchs.html#basketball), pour rester cohérent avec le
+   fonctionnement de pronostics.html / actualites.html. */
+function setActiveTabFromHash(tabs) {
+  if (!tabs) return;
+  const initial = window.location.hash.replace("#", "") || "tous";
+  const match = tabs.querySelector(`[data-sport-filter="${initial}"]`);
+  tabs.querySelectorAll(".sport-tab").forEach((btn) => {
+    const active = match ? btn === match : btn.dataset.sportFilter === "tous";
+    btn.classList.toggle("is-active", active);
+    btn.setAttribute("aria-selected", String(active));
+  });
+}
+
+function applyCardFilters(mount, tabs) {
+  const activeSport = tabs ? tabs.querySelector(".sport-tab.is-active").dataset.sportFilter : "tous";
+  const pays = document.getElementById("filtre-pays");
+  const competition = document.getElementById("filtre-competition");
+  const date = document.getElementById("filtre-date");
+  const cards = mount.querySelectorAll(":scope > article[data-sport]");
+  let visible = 0;
+  cards.forEach((card) => {
+    const okSport = activeSport === "tous" || card.dataset.sport === activeSport;
+    const okPays = !pays || !pays.value || card.dataset.pays === pays.value;
+    const okCompetition = !competition || !competition.value || card.dataset.competition === competition.value;
+    const okDate = !date || !date.value || card.dataset.date === date.value;
+    const match = okSport && okPays && okCompetition && okDate;
+    card.style.display = match ? "" : "none";
+    if (match) visible++;
+  });
+  let empty = mount.querySelector(".empty-state[data-filter-empty]");
+  if (visible === 0 && cards.length > 0) {
+    if (!empty) {
+      empty = document.createElement("div");
+      empty.className = "empty-state";
+      empty.setAttribute("data-filter-empty", "true");
+      empty.innerHTML = "<strong>Aucun résultat</strong>Aucun contenu ne correspond à ces filtres.";
+      mount.appendChild(empty);
+    }
+  } else if (empty) {
+    empty.remove();
+  }
+}
+
+async function initMatchsPage() {
+  const mount = document.getElementById("matchs-liste");
+  if (!mount) return;
+
+  const matchs = await fetchMatchsAVenir();
+  mount.innerHTML = matchs.length
+    ? matchs.map(renderMatchCard).join("")
+    : emptyState("Aucun match à venir pour le moment.");
+
+  const tabs = document.querySelector(".sport-tabs");
+  const paysSelect = document.getElementById("filtre-pays");
+  const competitionSelect = document.getElementById("filtre-competition");
+  const dateSelect = document.getElementById("filtre-date");
+
+  fillFilterSelect(paysSelect, matchs.map((m) => m.pays), "Tous les pays");
+  fillFilterSelect(competitionSelect, matchs.map((m) => m.competition), "Toutes les compétitions");
+  fillFilterSelect(dateSelect, matchs.map((m) => m.dateIso), "Toutes les dates");
+
+  [paysSelect, competitionSelect, dateSelect].forEach((sel) => {
+    sel.addEventListener("change", () => applyCardFilters(mount, tabs));
+  });
+  if (tabs) {
+    tabs.querySelectorAll(".sport-tab").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        tabs.querySelectorAll(".sport-tab").forEach((b) => {
+          b.classList.toggle("is-active", b === btn);
+          b.setAttribute("aria-selected", String(b === btn));
+        });
+        history.replaceState(null, "", "#" + btn.dataset.sportFilter);
+        applyCardFilters(mount, tabs);
+      });
+    });
+  }
+  setActiveTabFromHash(tabs);
+  applyCardFilters(mount, tabs);
+}
+
+/* ---------------------------------------------------------
+   PAGE SCORES — liste des matchs terminés avec résultat
+   --------------------------------------------------------- */
+
+function mapScoreFromSupabase(row) {
+  const s = Array.isArray(row.scores) ? row.scores[0] : row.scores;
+  return {
+    sport: (row.sports && row.sports.nom) || "",
+    competition: (row.competitions && row.competitions.nom) || "",
+    pays: row.pays || "",
+    equipe1: row.equipe1,
+    equipe2: row.equipe2,
+    date: formatDateFr(row.date_match),
+    dateIso: row.date_match,
+    score1: s ? s.score_equipe1 : null,
+    score2: s ? s.score_equipe2 : null,
+    mt1: s ? s.score_mt_equipe1 : null,
+    mt2: s ? s.score_mt_equipe2 : null
+  };
+}
+
+async function fetchScoresTermines() {
+  if (typeof supabaseClient === "undefined") return [];
+  try {
+    const { data, error } = await supabaseClient
+      .from("matchs")
+      .select("*, sports(nom, icone), competitions(nom), scores(score_equipe1, score_equipe2, score_mt_equipe1, score_mt_equipe2)")
+      .eq("statut", "terminé")
+      .order("date_match", { ascending: false });
+    if (error) throw error;
+    return (data || []).map(mapScoreFromSupabase);
+  } catch (err) {
+    console.warn("Supabase indisponible pour les scores.", err);
+    return [];
+  }
+}
+
+function renderScoreCard(m) {
+  const aScore = m.score1 !== null && m.score1 !== undefined;
+  return `
+    <article class="match-card score-card" data-sport="${sportSlug(m.sport)}" data-pays="${escapeHTML(m.pays)}" data-competition="${escapeHTML(m.competition)}" data-date="${escapeHTML(m.dateIso)}">
+      <div class="match-card__top">
+        <span class="sport-badge">${sportIcon(m.sport)} ${escapeHTML(m.sport)}</span>
+        <span class="status-badge is-termine">Terminé</span>
+      </div>
+      <div class="match-card__body">
+        <div class="match-card__competition">${escapeHTML(m.competition)}${m.pays ? " · " + escapeHTML(m.pays) : ""}</div>
+        <div class="match-card__teams">
+          <span>${escapeHTML(m.equipe1)}</span><span class="vs">vs</span><span>${escapeHTML(m.equipe2)}</span>
+        </div>
+        ${aScore ? `
+        <div class="score-card__score">
+          <span>${escapeHTML(m.score1)}</span><span class="separateur">–</span><span>${escapeHTML(m.score2)}</span>
+        </div>
+        ${m.mt1 !== null && m.mt1 !== undefined ? `<div class="score-card__mt">Mi-temps : ${escapeHTML(m.mt1)} – ${escapeHTML(m.mt2)}</div>` : ""}
+        ` : `<p class="match-card__meta">Score non renseigné.</p>`}
+        <div class="match-card__meta">${escapeHTML(m.date)}</div>
+      </div>
+    </article>`;
+}
+
+async function initScoresPage() {
+  const mount = document.getElementById("scores-liste");
+  if (!mount) return;
+
+  const scores = await fetchScoresTermines();
+  mount.innerHTML = scores.length
+    ? scores.map(renderScoreCard).join("")
+    : emptyState("Aucun résultat pour le moment.");
+
+  const tabs = document.querySelector(".sport-tabs");
+  const paysSelect = document.getElementById("filtre-pays");
+  const competitionSelect = document.getElementById("filtre-competition");
+  const dateSelect = document.getElementById("filtre-date");
+
+  fillFilterSelect(paysSelect, scores.map((m) => m.pays), "Tous les pays");
+  fillFilterSelect(competitionSelect, scores.map((m) => m.competition), "Toutes les compétitions");
+  fillFilterSelect(dateSelect, scores.map((m) => m.dateIso), "Toutes les dates");
+
+  [paysSelect, competitionSelect, dateSelect].forEach((sel) => {
+    sel.addEventListener("change", () => applyCardFilters(mount, tabs));
+  });
+  if (tabs) {
+    tabs.querySelectorAll(".sport-tab").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        tabs.querySelectorAll(".sport-tab").forEach((b) => {
+          b.classList.toggle("is-active", b === btn);
+          b.setAttribute("aria-selected", String(b === btn));
+        });
+        history.replaceState(null, "", "#" + btn.dataset.sportFilter);
+        applyCardFilters(mount, tabs);
+      });
+    });
+  }
+  setActiveTabFromHash(tabs);
+  applyCardFilters(mount, tabs);
+}
+
+/* ---------------------------------------------------------
    5. FILTRES PAR SPORT (onglets "Tous / Football / Basketball / Tennis")
    --------------------------------------------------------- */
 
@@ -516,9 +759,10 @@ function initFooterYear() {
 document.addEventListener("DOMContentLoaded", async () => {
   await Promise.all([mountLists(), renderTicker()]);
   initSportTabs();
+  await initMatchsPage();
+  await initScoresPage();
   initNav();
   initAccordion();
   initContactForm();
   initFooterYear();
 });
-       
