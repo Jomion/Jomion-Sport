@@ -1,0 +1,597 @@
+/* =========================================================
+   JOMION-SPORT — admin.js
+   Authentification (Supabase Auth) + gestion des contenus
+   (compétitions, pronostics, analyses, articles).
+   Nécessite que js/supabase-client.js soit chargé avant ce
+   fichier, avec l'URL et la clé Supabase déjà renseignées.
+   ========================================================= */
+
+let currentUser = null;
+let allSports = [];
+let allCompetitions = [];
+
+/* ---------------------------------------------------------
+   UTILITAIRES
+   --------------------------------------------------------- */
+
+function escapeHTML(str) {
+  const div = document.createElement("div");
+  div.textContent = str == null ? "" : str;
+  return div.innerHTML;
+}
+
+function showToast(message, isError) {
+  const toast = document.getElementById("admin-toast");
+  toast.textContent = message;
+  toast.classList.toggle("is-error", !!isError);
+  toast.classList.add("is-visible");
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => toast.classList.remove("is-visible"), 3500);
+}
+
+function sportNom(sportId) {
+  const s = allSports.find((x) => x.id === sportId);
+  return s ? s.nom : "—";
+}
+
+function competitionNom(competitionId) {
+  const c = allCompetitions.find((x) => x.id === competitionId);
+  return c ? c.nom : "—";
+}
+
+/* ---------------------------------------------------------
+   AUTHENTIFICATION
+   --------------------------------------------------------- */
+
+async function checkIsAdmin(userId) {
+  const { data, error } = await supabaseClient
+    .from("profils_admin")
+    .select("id, role, nom_affichage")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error) {
+    console.error(error);
+    return null;
+  }
+  return data;
+}
+
+async function initAuth() {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (session && session.user) {
+    await handleSignedIn(session.user);
+  } else {
+    showLogin();
+  }
+
+  supabaseClient.auth.onAuthStateChange(async (event, session) => {
+    if (event === "SIGNED_OUT") {
+      showLogin();
+    }
+  });
+}
+
+async function handleSignedIn(user) {
+  const profil = await checkIsAdmin(user.id);
+  if (!profil) {
+    showLoginError("Ce compte n'est pas autorisé à accéder à l'administration.");
+    await supabaseClient.auth.signOut();
+    return;
+  }
+  currentUser = user;
+  document.getElementById("admin-user-email").textContent =
+    (profil.nom_affichage || user.email) + " · " + profil.role;
+  showDashboard();
+  await loadEverything();
+}
+
+function showLogin() {
+  document.getElementById("login-screen").style.display = "flex";
+  document.getElementById("dashboard").style.display = "none";
+}
+
+function showDashboard() {
+  document.getElementById("login-screen").style.display = "none";
+  document.getElementById("dashboard").style.display = "block";
+}
+
+function showLoginError(message) {
+  const el = document.getElementById("login-error");
+  el.textContent = message;
+  el.classList.add("is-visible");
+}
+
+function initLoginForm() {
+  const form = document.getElementById("login-form");
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("login-email").value.trim();
+    const password = document.getElementById("login-password").value;
+    const submitBtn = document.getElementById("login-submit");
+    const errorEl = document.getElementById("login-error");
+    errorEl.classList.remove("is-visible");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Connexion…";
+
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Se connecter";
+
+    if (error) {
+      showLoginError("E-mail ou mot de passe incorrect.");
+      return;
+    }
+    await handleSignedIn(data.user);
+  });
+
+  document.getElementById("logout-btn").addEventListener("click", async () => {
+    await supabaseClient.auth.signOut();
+  });
+}
+
+/* ---------------------------------------------------------
+   ONGLETS
+   --------------------------------------------------------- */
+
+function initTabs() {
+  document.querySelectorAll(".admin-tab").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".admin-tab").forEach((b) => {
+        b.classList.toggle("is-active", b === btn);
+        b.setAttribute("aria-selected", String(b === btn));
+      });
+      document.querySelectorAll(".admin-panel").forEach((panel) => {
+        panel.classList.toggle("is-active", panel.id === "panel-" + btn.dataset.tab);
+      });
+    });
+  });
+}
+
+/* ---------------------------------------------------------
+   CHARGEMENT INITIAL
+   --------------------------------------------------------- */
+
+async function loadEverything() {
+  await loadSports();
+  await loadCompetitions();
+  populateSportSelects();
+  populateCompetitionSelects();
+  await loadPronostics();
+  await loadAnalyses();
+  await loadArticles();
+}
+
+async function loadSports() {
+  const { data, error } = await supabaseClient.from("sports").select("*").order("ordre_affichage");
+  if (error) { console.error(error); return; }
+  allSports = data || [];
+}
+
+function populateSportSelects() {
+  const options = allSports.map((s) => `<option value="${s.id}">${escapeHTML(s.icone || "")} ${escapeHTML(s.nom)}</option>`).join("");
+  ["competitions-sport", "pronostics-sport", "analyses-sport"].forEach((id) => {
+    document.getElementById(id).innerHTML = options;
+  });
+  // Le sport est facultatif pour un article
+  document.getElementById("articles-sport").innerHTML = `<option value="">— Aucun —</option>` + options;
+}
+
+/* ---------------------------------------------------------
+   COMPÉTITIONS
+   --------------------------------------------------------- */
+
+async function loadCompetitions() {
+  const { data, error } = await supabaseClient.from("competitions").select("*").order("ordre_affichage");
+  if (error) { console.error(error); return; }
+  allCompetitions = data || [];
+  renderCompetitionsList();
+}
+
+function populateCompetitionSelects() {
+  ["pronostics-competition", "analyses-competition"].forEach((id) => {
+    const select = document.getElementById(id);
+    const sportSelectId = id.replace("competition", "sport");
+    const sportSelect = document.getElementById(sportSelectId);
+    fillCompetitionSelect(select, sportSelect.value);
+    sportSelect.addEventListener("change", () => fillCompetitionSelect(select, sportSelect.value));
+  });
+}
+
+function fillCompetitionSelect(selectEl, sportId, selectedId) {
+  const filtered = sportId ? allCompetitions.filter((c) => c.sport_id === sportId) : allCompetitions;
+  selectEl.innerHTML = `<option value="">— Aucune —</option>` +
+    filtered.map((c) => `<option value="${c.id}">${escapeHTML(c.nom)}</option>`).join("");
+  if (selectedId) selectEl.value = selectedId;
+}
+
+function renderCompetitionsList() {
+  const mount = document.getElementById("list-competitions");
+  if (!allCompetitions.length) {
+    mount.innerHTML = `<div class="admin-empty">Aucune compétition pour le moment.</div>`;
+    return;
+  }
+  mount.innerHTML = allCompetitions.map((c) => `
+    <div class="admin-list-item">
+      <div class="admin-list-item__main">
+        <div class="admin-list-item__title">${escapeHTML(c.nom)}</div>
+        <div class="admin-list-item__meta">
+          <span class="badge ${c.actif ? "is-actif" : "is-inactif"}">${c.actif ? "Activée" : "Désactivée"}</span>
+          ${sportNom(c.sport_id)}${c.pays ? " · " + escapeHTML(c.pays) : ""} · ordre ${c.ordre_affichage}
+        </div>
+      </div>
+      <div class="admin-list-item__actions">
+        <button type="button" data-edit="${c.id}">Modifier</button>
+        <button type="button" class="is-danger" data-delete="${c.id}">Supprimer</button>
+      </div>
+    </div>`).join("");
+
+  mount.querySelectorAll("[data-edit]").forEach((btn) => btn.addEventListener("click", () => editCompetition(btn.dataset.edit)));
+  mount.querySelectorAll("[data-delete]").forEach((btn) => btn.addEventListener("click", () => deleteCompetition(btn.dataset.delete)));
+}
+
+function editCompetition(id) {
+  const c = allCompetitions.find((x) => x.id === id);
+  if (!c) return;
+  document.getElementById("competitions-id").value = c.id;
+  document.getElementById("competitions-nom").value = c.nom;
+  document.getElementById("competitions-sport").value = c.sport_id;
+  document.getElementById("competitions-pays").value = c.pays || "";
+  document.getElementById("competitions-ordre").value = c.ordre_affichage;
+  document.getElementById("competitions-actif").value = String(c.actif);
+  document.getElementById("form-competitions-title").textContent = "Modifier la compétition";
+  document.getElementById("competitions-cancel").style.display = "inline-flex";
+  document.getElementById("form-competitions").scrollIntoView({ behavior: "smooth" });
+}
+
+function resetCompetitionForm() {
+  document.getElementById("form-competitions").reset();
+  document.getElementById("competitions-id").value = "";
+  document.getElementById("form-competitions-title").textContent = "Ajouter une compétition";
+  document.getElementById("competitions-cancel").style.display = "none";
+}
+
+async function deleteCompetition(id) {
+  if (!confirm("Supprimer définitivement cette compétition ?")) return;
+  const { error } = await supabaseClient.from("competitions").delete().eq("id", id);
+  if (error) { showToast("Erreur : " + error.message, true); return; }
+  showToast("Compétition supprimée.");
+  await loadCompetitions();
+  populateCompetitionSelects();
+}
+
+function initCompetitionsForm() {
+  document.getElementById("form-competitions").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const id = document.getElementById("competitions-id").value;
+    const payload = {
+      nom: document.getElementById("competitions-nom").value.trim(),
+      sport_id: document.getElementById("competitions-sport").value,
+      pays: document.getElementById("competitions-pays").value.trim() || null,
+      ordre_affichage: Number(document.getElementById("competitions-ordre").value) || 0,
+      actif: document.getElementById("competitions-actif").value === "true"
+    };
+    const query = id
+      ? supabaseClient.from("competitions").update(payload).eq("id", id)
+      : supabaseClient.from("competitions").insert(payload);
+    const { error } = await query;
+    if (error) { showToast("Erreur : " + error.message, true); return; }
+    showToast(id ? "Compétition modifiée." : "Compétition ajoutée.");
+    resetCompetitionForm();
+    await loadCompetitions();
+    populateCompetitionSelects();
+  });
+  document.getElementById("competitions-cancel").addEventListener("click", resetCompetitionForm);
+}
+
+/* ---------------------------------------------------------
+   PRONOSTICS
+   --------------------------------------------------------- */
+
+let allPronostics = [];
+
+async function loadPronostics() {
+  const { data, error } = await supabaseClient.from("pronostics").select("*").order("date_match", { ascending: false });
+  if (error) { console.error(error); return; }
+  allPronostics = data || [];
+  renderPronosticsList();
+}
+
+function renderPronosticsList() {
+  const mount = document.getElementById("list-pronostics");
+  if (!allPronostics.length) {
+    mount.innerHTML = `<div class="admin-empty">Aucun pronostic pour le moment.</div>`;
+    return;
+  }
+  mount.innerHTML = allPronostics.map((p) => `
+    <div class="admin-list-item">
+      <div class="admin-list-item__main">
+        <div class="admin-list-item__title">${escapeHTML(p.equipe1)} vs ${escapeHTML(p.equipe2)}</div>
+        <div class="admin-list-item__meta">
+          <span class="badge ${p.publie ? "is-publie" : "is-brouillon"}">${p.publie ? "Publié" : "Brouillon"}</span>
+          ${sportNom(p.sport_id)} · ${competitionNom(p.competition_id)} · ${escapeHTML(p.date_match)}${p.heure_match ? " " + escapeHTML(p.heure_match) : ""} · confiance ${p.confiance}%
+        </div>
+      </div>
+      <div class="admin-list-item__actions">
+        <button type="button" data-edit="${p.id}">Modifier</button>
+        <button type="button" class="is-danger" data-delete="${p.id}">Supprimer</button>
+      </div>
+    </div>`).join("");
+
+  mount.querySelectorAll("[data-edit]").forEach((btn) => btn.addEventListener("click", () => editPronostic(btn.dataset.edit)));
+  mount.querySelectorAll("[data-delete]").forEach((btn) => btn.addEventListener("click", () => deletePronostic(btn.dataset.delete)));
+}
+
+function editPronostic(id) {
+  const p = allPronostics.find((x) => x.id === id);
+  if (!p) return;
+  document.getElementById("pronostics-id").value = p.id;
+  document.getElementById("pronostics-sport").value = p.sport_id;
+  fillCompetitionSelect(document.getElementById("pronostics-competition"), p.sport_id, p.competition_id);
+  document.getElementById("pronostics-equipe1").value = p.equipe1;
+  document.getElementById("pronostics-equipe2").value = p.equipe2;
+  document.getElementById("pronostics-date").value = p.date_match;
+  document.getElementById("pronostics-heure").value = p.heure_match || "";
+  document.getElementById("pronostics-pick").value = p.pronostic;
+  document.getElementById("pronostics-cote").value = p.cote || "";
+  document.getElementById("pronostics-confiance").value = p.confiance;
+  document.getElementById("pronostics-statut").value = p.statut;
+  document.getElementById("pronostics-publie").value = String(p.publie);
+  document.getElementById("pronostics-analyse").value = p.texte_analyse || "";
+  document.getElementById("form-pronostics-title").textContent = "Modifier le pronostic";
+  document.getElementById("pronostics-cancel").style.display = "inline-flex";
+  document.getElementById("form-pronostics").scrollIntoView({ behavior: "smooth" });
+}
+
+function resetPronosticForm() {
+  document.getElementById("form-pronostics").reset();
+  document.getElementById("pronostics-id").value = "";
+  document.getElementById("form-pronostics-title").textContent = "Ajouter un pronostic";
+  document.getElementById("pronostics-cancel").style.display = "none";
+}
+
+async function deletePronostic(id) {
+  if (!confirm("Supprimer définitivement ce pronostic ?")) return;
+  const { error } = await supabaseClient.from("pronostics").delete().eq("id", id);
+  if (error) { showToast("Erreur : " + error.message, true); return; }
+  showToast("Pronostic supprimé.");
+  await loadPronostics();
+}
+
+function initPronosticsForm() {
+  document.getElementById("form-pronostics").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const id = document.getElementById("pronostics-id").value;
+    const payload = {
+      sport_id: document.getElementById("pronostics-sport").value,
+      competition_id: document.getElementById("pronostics-competition").value || null,
+      equipe1: document.getElementById("pronostics-equipe1").value.trim(),
+      equipe2: document.getElementById("pronostics-equipe2").value.trim(),
+      date_match: document.getElementById("pronostics-date").value,
+      heure_match: document.getElementById("pronostics-heure").value || null,
+      pronostic: document.getElementById("pronostics-pick").value.trim(),
+      cote: document.getElementById("pronostics-cote").value.trim() || null,
+      confiance: Number(document.getElementById("pronostics-confiance").value) || 0,
+      texte_analyse: document.getElementById("pronostics-analyse").value.trim() || null,
+      statut: document.getElementById("pronostics-statut").value,
+      publie: document.getElementById("pronostics-publie").value === "true",
+      auteur_id: currentUser.id
+    };
+    const query = id
+      ? supabaseClient.from("pronostics").update(payload).eq("id", id)
+      : supabaseClient.from("pronostics").insert(payload);
+    const { error } = await query;
+    if (error) { showToast("Erreur : " + error.message, true); return; }
+    showToast(id ? "Pronostic modifié." : "Pronostic ajouté.");
+    resetPronosticForm();
+    await loadPronostics();
+  });
+  document.getElementById("pronostics-cancel").addEventListener("click", resetPronosticForm);
+}
+
+/* ---------------------------------------------------------
+   ANALYSES
+   --------------------------------------------------------- */
+
+let allAnalyses = [];
+
+async function loadAnalyses() {
+  const { data, error } = await supabaseClient.from("analyses").select("*").order("date_publication", { ascending: false });
+  if (error) { console.error(error); return; }
+  allAnalyses = data || [];
+  renderAnalysesList();
+}
+
+function renderAnalysesList() {
+  const mount = document.getElementById("list-analyses");
+  if (!allAnalyses.length) {
+    mount.innerHTML = `<div class="admin-empty">Aucune analyse pour le moment.</div>`;
+    return;
+  }
+  mount.innerHTML = allAnalyses.map((a) => `
+    <div class="admin-list-item">
+      <div class="admin-list-item__main">
+        <div class="admin-list-item__title">${escapeHTML(a.titre)}</div>
+        <div class="admin-list-item__meta">
+          <span class="badge ${a.statut === "publié" ? "is-publie" : "is-brouillon"}">${escapeHTML(a.statut)}</span>
+          ${sportNom(a.sport_id)} · ${competitionNom(a.competition_id)} · ${escapeHTML(a.date_publication || "")}
+        </div>
+      </div>
+      <div class="admin-list-item__actions">
+        <button type="button" data-edit="${a.id}">Modifier</button>
+        <button type="button" class="is-danger" data-delete="${a.id}">Supprimer</button>
+      </div>
+    </div>`).join("");
+
+  mount.querySelectorAll("[data-edit]").forEach((btn) => btn.addEventListener("click", () => editAnalyse(btn.dataset.edit)));
+  mount.querySelectorAll("[data-delete]").forEach((btn) => btn.addEventListener("click", () => deleteAnalyse(btn.dataset.delete)));
+}
+
+function editAnalyse(id) {
+  const a = allAnalyses.find((x) => x.id === id);
+  if (!a) return;
+  document.getElementById("analyses-id").value = a.id;
+  document.getElementById("analyses-titre").value = a.titre;
+  document.getElementById("analyses-sport").value = a.sport_id;
+  fillCompetitionSelect(document.getElementById("analyses-competition"), a.sport_id, a.competition_id);
+  document.getElementById("analyses-date").value = a.date_publication || "";
+  document.getElementById("analyses-statut").value = a.statut;
+  document.getElementById("analyses-texte").value = a.texte_analyse || "";
+  document.getElementById("analyses-conclusion").value = a.conclusion || "";
+  document.getElementById("form-analyses-title").textContent = "Modifier l'analyse";
+  document.getElementById("analyses-cancel").style.display = "inline-flex";
+  document.getElementById("form-analyses").scrollIntoView({ behavior: "smooth" });
+}
+
+function resetAnalyseForm() {
+  document.getElementById("form-analyses").reset();
+  document.getElementById("analyses-id").value = "";
+  document.getElementById("form-analyses-title").textContent = "Ajouter une analyse";
+  document.getElementById("analyses-cancel").style.display = "none";
+}
+
+async function deleteAnalyse(id) {
+  if (!confirm("Supprimer définitivement cette analyse ?")) return;
+  const { error } = await supabaseClient.from("analyses").delete().eq("id", id);
+  if (error) { showToast("Erreur : " + error.message, true); return; }
+  showToast("Analyse supprimée.");
+  await loadAnalyses();
+}
+
+function initAnalysesForm() {
+  document.getElementById("form-analyses").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const id = document.getElementById("analyses-id").value;
+    const payload = {
+      titre: document.getElementById("analyses-titre").value.trim(),
+      sport_id: document.getElementById("analyses-sport").value,
+      competition_id: document.getElementById("analyses-competition").value || null,
+      date_publication: document.getElementById("analyses-date").value || null,
+      statut: document.getElementById("analyses-statut").value,
+      texte_analyse: document.getElementById("analyses-texte").value.trim() || null,
+      conclusion: document.getElementById("analyses-conclusion").value.trim() || null,
+      auteur_id: currentUser.id
+    };
+    const query = id
+      ? supabaseClient.from("analyses").update(payload).eq("id", id)
+      : supabaseClient.from("analyses").insert(payload);
+    const { error } = await query;
+    if (error) { showToast("Erreur : " + error.message, true); return; }
+    showToast(id ? "Analyse modifiée." : "Analyse ajoutée.");
+    resetAnalyseForm();
+    await loadAnalyses();
+  });
+  document.getElementById("analyses-cancel").addEventListener("click", resetAnalyseForm);
+}
+
+/* ---------------------------------------------------------
+   ARTICLES
+   --------------------------------------------------------- */
+
+let allArticles = [];
+
+async function loadArticles() {
+  const { data, error } = await supabaseClient.from("articles").select("*").order("date_publication", { ascending: false });
+  if (error) { console.error(error); return; }
+  allArticles = data || [];
+  renderArticlesList();
+}
+
+function renderArticlesList() {
+  const mount = document.getElementById("list-articles");
+  if (!allArticles.length) {
+    mount.innerHTML = `<div class="admin-empty">Aucun article pour le moment.</div>`;
+    return;
+  }
+  mount.innerHTML = allArticles.map((a) => `
+    <div class="admin-list-item">
+      <div class="admin-list-item__main">
+        <div class="admin-list-item__title">${escapeHTML(a.titre)}</div>
+        <div class="admin-list-item__meta">
+          <span class="badge ${a.statut === "publié" ? "is-publie" : "is-brouillon"}">${escapeHTML(a.statut)}</span>
+          ${a.sport_id ? sportNom(a.sport_id) + " · " : ""}${escapeHTML(a.categorie || "")} · ${escapeHTML(a.date_publication || "")}
+        </div>
+      </div>
+      <div class="admin-list-item__actions">
+        <button type="button" data-edit="${a.id}">Modifier</button>
+        <button type="button" class="is-danger" data-delete="${a.id}">Supprimer</button>
+      </div>
+    </div>`).join("");
+
+  mount.querySelectorAll("[data-edit]").forEach((btn) => btn.addEventListener("click", () => editArticle(btn.dataset.edit)));
+  mount.querySelectorAll("[data-delete]").forEach((btn) => btn.addEventListener("click", () => deleteArticle(btn.dataset.delete)));
+}
+
+function editArticle(id) {
+  const a = allArticles.find((x) => x.id === id);
+  if (!a) return;
+  document.getElementById("articles-id").value = a.id;
+  document.getElementById("articles-titre").value = a.titre;
+  document.getElementById("articles-sport").value = a.sport_id || "";
+  document.getElementById("articles-categorie").value = a.categorie || "";
+  document.getElementById("articles-date").value = a.date_publication || "";
+  document.getElementById("articles-image").value = a.image_url || "";
+  document.getElementById("articles-auteur").value = a.auteur || "";
+  document.getElementById("articles-statut").value = a.statut;
+  document.getElementById("articles-resume").value = a.resume || "";
+  document.getElementById("articles-contenu").value = a.contenu || "";
+  document.getElementById("form-articles-title").textContent = "Modifier l'article";
+  document.getElementById("articles-cancel").style.display = "inline-flex";
+  document.getElementById("form-articles").scrollIntoView({ behavior: "smooth" });
+}
+
+function resetArticleForm() {
+  document.getElementById("form-articles").reset();
+  document.getElementById("articles-id").value = "";
+  document.getElementById("form-articles-title").textContent = "Ajouter un article";
+  document.getElementById("articles-cancel").style.display = "none";
+}
+
+async function deleteArticle(id) {
+  if (!confirm("Supprimer définitivement cet article ?")) return;
+  const { error } = await supabaseClient.from("articles").delete().eq("id", id);
+  if (error) { showToast("Erreur : " + error.message, true); return; }
+  showToast("Article supprimé.");
+  await loadArticles();
+}
+
+function initArticlesForm() {
+  document.getElementById("form-articles").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const id = document.getElementById("articles-id").value;
+    const payload = {
+      titre: document.getElementById("articles-titre").value.trim(),
+      sport_id: document.getElementById("articles-sport").value || null,
+      categorie: document.getElementById("articles-categorie").value.trim() || null,
+      date_publication: document.getElementById("articles-date").value || null,
+      image_url: document.getElementById("articles-image").value.trim() || null,
+      auteur: document.getElementById("articles-auteur").value.trim() || null,
+      statut: document.getElementById("articles-statut").value,
+      resume: document.getElementById("articles-resume").value.trim() || null,
+      contenu: document.getElementById("articles-contenu").value.trim() || null
+    };
+    const query = id
+      ? supabaseClient.from("articles").update(payload).eq("id", id)
+      : supabaseClient.from("articles").insert(payload);
+    const { error } = await query;
+    if (error) { showToast("Erreur : " + error.message, true); return; }
+    showToast(id ? "Article modifié." : "Article ajouté.");
+    resetArticleForm();
+    await loadArticles();
+  });
+  document.getElementById("articles-cancel").addEventListener("click", resetArticleForm);
+}
+
+/* ---------------------------------------------------------
+   INITIALISATION GÉNÉRALE
+   --------------------------------------------------------- */
+
+document.addEventListener("DOMContentLoaded", () => {
+  initLoginForm();
+  initTabs();
+  initCompetitionsForm();
+  initPronosticsForm();
+  initAnalysesForm();
+  initArticlesForm();
+  initAuth();
+});
