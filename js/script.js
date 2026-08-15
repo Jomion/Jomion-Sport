@@ -323,6 +323,52 @@ async function mountLists() {
 }
 
 /* ---------------------------------------------------------
+   BANDEAU DE COMPÉTITIONS (ticker) ↔ SUPABASE
+   -----------------------------------------------------------
+   Le bandeau qui défile en haut de chaque page affiche les
+   compétitions ACTIVES de la table "competitions" de Supabase,
+   dans l'ordre défini par leur "ordre_affichage" — le tout se
+   gère désormais entièrement depuis l'onglet "Compétitions" de
+   admin.html (ajouter, modifier, activer/désactiver, réordonner).
+
+   Si Supabase est injoignable (page hors-ligne, clé pas encore
+   configurée...), la liste de secours ci-dessous s'affiche à la
+   place pour que le bandeau ne soit jamais vide.
+   --------------------------------------------------------- */
+
+const COMPETITIONS_SECOURS = [
+  "Football", "Basketball", "Tennis", "CAN 2026",
+  "Premier League", "NBA", "ATP / WTA", "Ligue 1"
+];
+
+async function fetchCompetitionsForTicker() {
+  if (typeof supabaseClient === "undefined") return null;
+  try {
+    const { data, error } = await supabaseClient
+      .from("competitions")
+      .select("nom")
+      .eq("actif", true)
+      .order("ordre_affichage", { ascending: true });
+    if (error) throw error;
+    return (data || []).map((c) => c.nom);
+  } catch (err) {
+    console.warn("Supabase indisponible pour le bandeau de compétitions, utilisation de la liste de secours.", err);
+    return null;
+  }
+}
+
+async function renderTicker() {
+  const track = document.querySelector(".ticker__track");
+  if (!track) return;
+  let noms = await fetchCompetitionsForTicker();
+  if (!noms || !noms.length) noms = COMPETITIONS_SECOURS;
+  const itemsHTML = noms.map((nom) => `<span>${escapeHTML(nom)}</span>`).join("");
+  // Dupliqué pour un défilement infini sans coupure
+  // (l'animation CSS déplace le bandeau de -50%, voir css/style.css).
+  track.innerHTML = itemsHTML + itemsHTML;
+}
+
+/* ---------------------------------------------------------
    5. FILTRES PAR SPORT (onglets "Tous / Football / Basketball / Tennis")
    --------------------------------------------------------- */
 
@@ -468,10 +514,11 @@ function initFooterYear() {
    --------------------------------------------------------- */
 
 document.addEventListener("DOMContentLoaded", async () => {
-  await mountLists();
+  await Promise.all([mountLists(), renderTicker()]);
   initSportTabs();
   initNav();
   initAccordion();
   initContactForm();
   initFooterYear();
 });
+       
