@@ -370,11 +370,6 @@ async function renderTicker() {
 
 /* ---------------------------------------------------------
    PAGE MATCHS — liste des matchs à venir / en cours
-   -----------------------------------------------------------
-   Les matchs sont gérés directement dans Supabase (table
-   "matchs") — un onglet dédié dans admin.html arrivera dans une
-   prochaine étape ; en attendant, ils peuvent être ajoutés via
-   Supabase → Table Editor ou SQL Editor.
    --------------------------------------------------------- */
 
 function mapMatchFromSupabase(row) {
@@ -612,6 +607,78 @@ async function initScoresPage() {
 }
 
 /* ---------------------------------------------------------
+   PAGE COMPÉTITIONS — liste publique des compétitions actives
+   --------------------------------------------------------- */
+
+function mapCompetitionFromSupabase(row) {
+  return {
+    nom: row.nom,
+    sport: (row.sports && row.sports.nom) || "",
+    pays: row.pays || ""
+  };
+}
+
+async function fetchCompetitionsPublic() {
+  if (typeof supabaseClient === "undefined") return [];
+  try {
+    const { data, error } = await supabaseClient
+      .from("competitions")
+      .select("*, sports(nom, icone)")
+      .eq("actif", true)
+      .order("ordre_affichage", { ascending: true });
+    if (error) throw error;
+    return (data || []).map(mapCompetitionFromSupabase);
+  } catch (err) {
+    console.warn("Supabase indisponible pour les compétitions.", err);
+    return [];
+  }
+}
+
+function renderCompetitionCard(c) {
+  return `
+    <article class="match-card" data-sport="${sportSlug(c.sport)}" data-pays="${escapeHTML(c.pays)}">
+      <div class="match-card__top">
+        <span class="sport-badge">${sportIcon(c.sport)} ${escapeHTML(c.sport)}</span>
+      </div>
+      <div class="match-card__body">
+        <div class="match-card__teams" style="font-size:1.1rem;">${escapeHTML(c.nom)}</div>
+        ${c.pays ? `<div class="match-card__meta">${escapeHTML(c.pays)}</div>` : ""}
+      </div>
+    </article>`;
+}
+
+async function initCompetitionsPage() {
+  const mount = document.getElementById("competitions-liste");
+  if (!mount) return;
+
+  const competitions = await fetchCompetitionsPublic();
+  mount.innerHTML = competitions.length
+    ? competitions.map(renderCompetitionCard).join("")
+    : emptyState("Aucune compétition pour le moment.");
+
+  const tabs = document.querySelector(".sport-tabs");
+  const paysSelect = document.getElementById("filtre-pays");
+  if (paysSelect) {
+    fillFilterSelect(paysSelect, competitions.map((c) => c.pays), "Tous les pays");
+    paysSelect.addEventListener("change", () => applyCardFilters(mount, tabs));
+  }
+  if (tabs) {
+    tabs.querySelectorAll(".sport-tab").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        tabs.querySelectorAll(".sport-tab").forEach((b) => {
+          b.classList.toggle("is-active", b === btn);
+          b.setAttribute("aria-selected", String(b === btn));
+        });
+        history.replaceState(null, "", "#" + btn.dataset.sportFilter);
+        applyCardFilters(mount, tabs);
+      });
+    });
+  }
+  setActiveTabFromHash(tabs);
+  applyCardFilters(mount, tabs);
+}
+
+/* ---------------------------------------------------------
    5. FILTRES PAR SPORT (onglets "Tous / Football / Basketball / Tennis")
    --------------------------------------------------------- */
 
@@ -761,6 +828,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   initSportTabs();
   await initMatchsPage();
   await initScoresPage();
+  await initCompetitionsPage();
   initNav();
   initAccordion();
   initContactForm();
