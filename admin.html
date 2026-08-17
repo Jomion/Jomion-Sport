@@ -58,6 +58,8 @@
       <button class="admin-tab" data-tab="articles" role="tab" aria-selected="false">Articles</button>
       <button class="admin-tab" data-tab="matchs" role="tab" aria-selected="false">Matchs</button>
       <button class="admin-tab" data-tab="scores" role="tab" aria-selected="false">Scores</button>
+      <button class="admin-tab" data-tab="sports" role="tab" aria-selected="false">Sports</button>
+      <button class="admin-tab" data-tab="partenaires" role="tab" aria-selected="false">Partenaires</button>
     </nav>
 
     <!-- ===================== COMPÉTITIONS ===================== -->
@@ -95,76 +97,11 @@
           <button type="button" class="btn btn--outline" id="competitions-cancel" style="display:none;">Annuler la modification</button>
         </div>
       </form>
-      <div class="admin-list" id="list-articles">
+      <div class="admin-list" id="list-competitions">
         <div class="admin-loading">Chargement…</div>
       </div>
     </section>
 
-    <!-- ===================== MATCHS ===================== -->
-    <section class="admin-panel" id="panel-matchs">
-      <form class="admin-form" id="form-matchs">
-        <h2 id="form-matchs-title">Ajouter un match</h2>
-        <input type="hidden" id="matchs-id" value="">
-        <div class="admin-form-grid admin-form-grid--wide">
-          <div class="form-field">
-            <label for="matchs-sport">Sport</label>
-            <select id="matchs-sport" required></select>
-          </div>
-          <div class="form-field">
-            <label for="matchs-competition">Compétition</label>
-            <select id="matchs-competition"></select>
-          </div>
-          <div class="form-field">
-            <label for="matchs-pays">Pays (facultatif)</label>
-            <input type="text" id="matchs-pays" placeholder="Ex. Angleterre">
-          </div>
-          <div class="form-field">
-            <label for="matchs-equipe1">Équipe / joueur 1</label>
-            <input type="text" id="matchs-equipe1" required>
-          </div>
-          <div class="form-field">
-            <label for="matchs-equipe2">Équipe / joueur 2</label>
-            <input type="text" id="matchs-equipe2" required>
-          </div>
-          <div class="form-field">
-            <label for="matchs-date">Date</label>
-            <input type="date" id="matchs-date" required>
-          </div>
-          <div class="form-field">
-            <label for="matchs-heure">Heure</label>
-            <input type="time" id="matchs-heure">
-          </div>
-          <div class="form-field">
-            <label for="matchs-statut">Statut</label>
-            <select id="matchs-statut">
-              <option value="à venir">À venir</option>
-              <option value="en cours">En cours</option>
-              <option value="terminé">Terminé</option>
-              <option value="annulé">Annulé</option>
-            </select>
-          </div>
-        </div>
-        <div class="admin-form-actions">
-          <button type="submit" class="btn btn--primary">Enregistrer</button>
-          <button type="button" class="btn btn--outline" id="matchs-cancel" style="display:none;">Annuler la modification</button>
-        </div>
-        <p class="admin-form-note">Passez un match en statut « Terminé » pour pouvoir lui ajouter un score dans l'onglet Scores.</p>
-      </form>
-      <div class="admin-list" id="list-matchs">
-        <div class="admin-loading">Chargement…</div>
-      </div>
-    </section>
-
-    <!-- ===================== SCORES ===================== -->
-    <section class="admin-panel" id="panel-scores">
-      <p class="admin-form-note" style="margin-bottom:16px;">Les scores se rattachent à un match existant : passez d'abord un match en statut « Terminé » dans l'onglet Matchs, il apparaîtra ici pour saisir son résultat.</p>
-      <div class="admin-list" id="list-scores">
-        <div class="admin-loading">Chargement…</div>
-      </div>
-    </section>
-
-  </div>
-</div>
     <!-- ===================== PRONOSTICS ===================== -->
     <section class="admin-panel" id="panel-pronostics">
       <form class="admin-form" id="form-pronostics">
@@ -338,6 +275,151 @@
         </div>
       </form>
       <div class="admin-list" id="list-articles">
+        <div class="admin-loading">Chargement…</div>
+      </div>
+    </section>
+
+    <!-- ===================== MATCHS ===================== -->
+    <section class="admin-panel" id="panel-matchs">
+      <form class="admin-form" id="form-matchs">
+        <h2 id="form-matchs-title">Ajouter un match</h2>
+        <input type="hidden" id="matchs-id" value="">
+        <div class="admin-form-grid admin-form-grid--wide">
+          <div class="form-field">
+            <label for="matchs-sport">Sport</label>
+            <select id="matchs-sport" required></select>
+          </div>
+          <div class="form-field">
+            <label for="matchs-competition">Compétition</label>
+            <select id="matchs-competition"></select>
+          </div>
+          <div class="form-field">
+            <label for="matchs-pays">Pays (facultatif)</label>
+            <input type="text" id="matchs-pays" placeholder="Ex. Angleterre">
+          </div>
+          <div class="form-field">
+            <label for="matchs-equipe1">Équipe / joueur 1</label>
+            <input type="text" id="matchs-equipe1" required>
+          </div>
+          <div class="form-field">
+            <label for="matchs-equipe2">Équipe / joueur 2</label>
+            <input type="text" id="matchs-equipe2" required>
+          </div>
+          <div class="form-field">
+            <label for="matchs-date">Date</label>
+            <input type="date" id="matchs-date" required>
+          </div>
+          <div class="form-field">
+            <label for="matchs-heure">Heure</label>
+            <input type="time" id="matchs-heure">
+          </div>
+          <div class="form-field">
+            <label for="matchs-statut">Statut</label>
+            <select id="matchs-statut">
+              <option value="à venir">À venir</option>
+              <option value="en cours">En cours</option>
+              <option value="terminé">Terminé</option>
+              <option value="annulé">Annulé</option>
+            </select>
+          </div>
+        </div>
+        <div class="admin-form-actions">
+          <button type="submit" class="btn btn--primary">Enregistrer</button>
+          <button type="button" class="btn btn--outline" id="matchs-cancel" style="display:none;">Annuler la modification</button>
+        </div>
+        <p class="admin-form-note">Passez un match en statut « Terminé » pour pouvoir lui ajouter un score dans l'onglet Scores.</p>
+      </form>
+      <div class="admin-list" id="list-matchs">
+        <div class="admin-loading">Chargement…</div>
+      </div>
+    </section>
+
+    <!-- ===================== SCORES ===================== -->
+    <section class="admin-panel" id="panel-scores">
+      <p class="admin-form-note" style="margin-bottom:16px;">Les scores se rattachent à un match existant : passez d'abord un match en statut « Terminé » dans l'onglet Matchs, il apparaîtra ici pour saisir son résultat.</p>
+      <div class="admin-list" id="list-scores">
+        <div class="admin-loading">Chargement…</div>
+      </div>
+    </section>
+
+    <!-- ===================== SPORTS ===================== -->
+    <section class="admin-panel" id="panel-sports">
+      <form class="admin-form" id="form-sports">
+        <h2 id="form-sports-title">Ajouter un sport</h2>
+        <input type="hidden" id="sports-id" value="">
+        <div class="admin-form-grid">
+          <div class="form-field">
+            <label for="sports-nom">Nom</label>
+            <input type="text" id="sports-nom" required placeholder="Ex. Football">
+          </div>
+          <div class="form-field">
+            <label for="sports-slug">Slug (identifiant technique)</label>
+            <input type="text" id="sports-slug" required placeholder="Ex. football">
+          </div>
+          <div class="form-field">
+            <label for="sports-icone">Icône (emoji, facultatif)</label>
+            <input type="text" id="sports-icone" placeholder="Ex. ⚽" maxlength="4">
+          </div>
+          <div class="form-field">
+            <label for="sports-ordre">Ordre d'affichage</label>
+            <input type="number" id="sports-ordre" value="0" step="1">
+          </div>
+          <div class="form-field">
+            <label for="sports-actif">Statut</label>
+            <select id="sports-actif">
+              <option value="true">Activé (visible sur le site)</option>
+              <option value="false">Désactivé (masqué)</option>
+            </select>
+          </div>
+        </div>
+        <div class="admin-form-actions">
+          <button type="submit" class="btn btn--primary">Enregistrer</button>
+          <button type="button" class="btn btn--outline" id="sports-cancel" style="display:none;">Annuler la modification</button>
+        </div>
+        <p class="admin-form-note">Le « slug » doit être unique et sans accents ni espaces (ex. « football », « basketball »). Il sert notamment aux filtres du site.</p>
+      </form>
+      <div class="admin-list" id="list-sports">
+        <div class="admin-loading">Chargement…</div>
+      </div>
+    </section>
+
+    <!-- ===================== PARTENAIRES ===================== -->
+    <section class="admin-panel" id="panel-partenaires">
+      <form class="admin-form" id="form-partenaires">
+        <h2 id="form-partenaires-title">Ajouter un partenaire</h2>
+        <input type="hidden" id="partenaires-id" value="">
+        <div class="admin-form-grid">
+          <div class="form-field">
+            <label for="partenaires-nom">Nom du partenaire</label>
+            <input type="text" id="partenaires-nom" required placeholder="Ex. AfroPari">
+          </div>
+          <div class="form-field">
+            <label for="partenaires-logo">Logo (URL, facultatif)</label>
+            <input type="text" id="partenaires-logo" placeholder="https://…">
+          </div>
+          <div class="form-field">
+            <label for="partenaires-url">Lien d'affiliation</label>
+            <input type="text" id="partenaires-url" placeholder="https://…">
+          </div>
+          <div class="form-field">
+            <label for="partenaires-ordre">Ordre d'affichage</label>
+            <input type="number" id="partenaires-ordre" value="0" step="1">
+          </div>
+          <div class="form-field">
+            <label for="partenaires-actif">Statut</label>
+            <select id="partenaires-actif">
+              <option value="true">Actif (visible sur le site)</option>
+              <option value="false">Inactif (masqué)</option>
+            </select>
+          </div>
+        </div>
+        <div class="admin-form-actions">
+          <button type="submit" class="btn btn--primary">Enregistrer</button>
+          <button type="button" class="btn btn--outline" id="partenaires-cancel" style="display:none;">Annuler la modification</button>
+        </div>
+        <p class="admin-form-note">N'ajoutez un partenaire que lorsque votre lien d'affiliation réel est confirmé — ne mettez jamais de lien fictif.</p>
+      </form>
+      <div class="admin-list" id="list-partenaires">
         <div class="admin-loading">Chargement…</div>
       </div>
     </section>
