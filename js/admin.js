@@ -160,6 +160,10 @@ async function loadEverything() {
   await loadPronostics();
   await loadAnalyses();
   await loadArticles();
+  await loadMatchs();
+  await loadScoresPanel();
+  renderSportsList();
+  await loadPartenaires();
 }
 
 async function loadSports() {
@@ -170,7 +174,7 @@ async function loadSports() {
 
 function populateSportSelects() {
   const options = allSports.map((s) => `<option value="${s.id}">${escapeHTML(s.icone || "")} ${escapeHTML(s.nom)}</option>`).join("");
-  ["competitions-sport", "pronostics-sport", "analyses-sport"].forEach((id) => {
+  ["competitions-sport", "pronostics-sport", "analyses-sport", "matchs-sport"].forEach((id) => {
     document.getElementById(id).innerHTML = options;
   });
   // Le sport est facultatif pour un article
@@ -189,7 +193,7 @@ async function loadCompetitions() {
 }
 
 function populateCompetitionSelects() {
-  ["pronostics-competition", "analyses-competition"].forEach((id) => {
+  ["pronostics-competition", "analyses-competition", "matchs-competition"].forEach((id) => {
     const select = document.getElementById(id);
     const sportSelectId = id.replace("competition", "sport");
     const sportSelect = document.getElementById(sportSelectId);
@@ -583,6 +587,358 @@ function initArticlesForm() {
 }
 
 /* ---------------------------------------------------------
+   MATCHS
+   --------------------------------------------------------- */
+
+let allMatchs = [];
+
+async function loadMatchs() {
+  const { data, error } = await supabaseClient.from("matchs").select("*").order("date_match", { ascending: false });
+  if (error) { console.error(error); return; }
+  allMatchs = data || [];
+  renderMatchsList();
+}
+
+function renderMatchsList() {
+  const mount = document.getElementById("list-matchs");
+  if (!allMatchs.length) {
+    mount.innerHTML = `<div class="admin-empty">Aucun match pour le moment.</div>`;
+    return;
+  }
+  mount.innerHTML = allMatchs.map((m) => `
+    <div class="admin-list-item">
+      <div class="admin-list-item__main">
+        <div class="admin-list-item__title">${escapeHTML(m.equipe1)} vs ${escapeHTML(m.equipe2)}</div>
+        <div class="admin-list-item__meta">
+          <span class="badge ${m.statut === "terminé" ? "is-publie" : "is-inactif"}">${escapeHTML(m.statut)}</span>
+          ${sportNom(m.sport_id)} · ${competitionNom(m.competition_id)}${m.pays ? " · " + escapeHTML(m.pays) : ""} · ${escapeHTML(m.date_match)}${m.heure_match ? " " + escapeHTML(m.heure_match) : ""}
+        </div>
+      </div>
+      <div class="admin-list-item__actions">
+        <button type="button" data-edit="${m.id}">Modifier</button>
+        <button type="button" class="is-danger" data-delete="${m.id}">Supprimer</button>
+      </div>
+    </div>`).join("");
+
+  mount.querySelectorAll("[data-edit]").forEach((btn) => btn.addEventListener("click", () => editMatch(btn.dataset.edit)));
+  mount.querySelectorAll("[data-delete]").forEach((btn) => btn.addEventListener("click", () => deleteMatch(btn.dataset.delete)));
+}
+
+function editMatch(id) {
+  const m = allMatchs.find((x) => x.id === id);
+  if (!m) return;
+  document.getElementById("matchs-id").value = m.id;
+  document.getElementById("matchs-sport").value = m.sport_id;
+  fillCompetitionSelect(document.getElementById("matchs-competition"), m.sport_id, m.competition_id);
+  document.getElementById("matchs-pays").value = m.pays || "";
+  document.getElementById("matchs-equipe1").value = m.equipe1;
+  document.getElementById("matchs-equipe2").value = m.equipe2;
+  document.getElementById("matchs-date").value = m.date_match;
+  document.getElementById("matchs-heure").value = m.heure_match || "";
+  document.getElementById("matchs-statut").value = m.statut;
+  document.getElementById("form-matchs-title").textContent = "Modifier le match";
+  document.getElementById("matchs-cancel").style.display = "inline-flex";
+  document.getElementById("form-matchs").scrollIntoView({ behavior: "smooth" });
+}
+
+function resetMatchForm() {
+  document.getElementById("form-matchs").reset();
+  document.getElementById("matchs-id").value = "";
+  document.getElementById("form-matchs-title").textContent = "Ajouter un match";
+  document.getElementById("matchs-cancel").style.display = "none";
+}
+
+async function deleteMatch(id) {
+  if (!confirm("Supprimer définitivement ce match ? Son score éventuel sera supprimé aussi.")) return;
+  const { error } = await supabaseClient.from("matchs").delete().eq("id", id);
+  if (error) { showToast("Erreur : " + error.message, true); return; }
+  showToast("Match supprimé.");
+  await loadMatchs();
+  await loadScoresPanel();
+}
+
+function initMatchsForm() {
+  document.getElementById("form-matchs").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const id = document.getElementById("matchs-id").value;
+    const payload = {
+      sport_id: document.getElementById("matchs-sport").value,
+      competition_id: document.getElementById("matchs-competition").value || null,
+      pays: document.getElementById("matchs-pays").value.trim() || null,
+      equipe1: document.getElementById("matchs-equipe1").value.trim(),
+      equipe2: document.getElementById("matchs-equipe2").value.trim(),
+      date_match: document.getElementById("matchs-date").value,
+      heure_match: document.getElementById("matchs-heure").value || null,
+      statut: document.getElementById("matchs-statut").value
+    };
+    const query = id
+      ? supabaseClient.from("matchs").update(payload).eq("id", id)
+      : supabaseClient.from("matchs").insert(payload);
+    const { error } = await query;
+    if (error) { showToast("Erreur : " + error.message, true); return; }
+    showToast(id ? "Match modifié." : "Match ajouté.");
+    resetMatchForm();
+    await loadMatchs();
+    await loadScoresPanel();
+  });
+  document.getElementById("matchs-cancel").addEventListener("click", resetMatchForm);
+}
+
+/* ---------------------------------------------------------
+   SCORES
+   -----------------------------------------------------------
+   Pas de formulaire d'ajout séparé : un score se rattache
+   toujours à un match existant passé en statut "terminé".
+   La liste ci-dessous permet de saisir/modifier le score de
+   chacun de ces matchs directement, sans changer de page.
+   --------------------------------------------------------- */
+
+let allScores = [];
+
+async function loadScoresPanel() {
+  const { data, error } = await supabaseClient.from("scores").select("*");
+  if (error) { console.error(error); return; }
+  allScores = data || [];
+  renderScoresPanelList();
+}
+
+function scoreForMatch(matchId) {
+  return allScores.find((s) => s.match_id === matchId) || null;
+}
+
+function renderScoresPanelList() {
+  const mount = document.getElementById("list-scores");
+  const matchsTermines = allMatchs.filter((m) => m.statut === "terminé");
+  if (!matchsTermines.length) {
+    mount.innerHTML = `<div class="admin-empty">Aucun match terminé pour le moment. Passez un match en statut « Terminé » dans l'onglet Matchs pour lui ajouter un score ici.</div>`;
+    return;
+  }
+  mount.innerHTML = matchsTermines.map((m) => {
+    const s = scoreForMatch(m.id);
+    return `
+    <div class="admin-list-item" style="align-items:center;">
+      <div class="admin-list-item__main">
+        <div class="admin-list-item__title">${escapeHTML(m.equipe1)} vs ${escapeHTML(m.equipe2)}</div>
+        <div class="admin-list-item__meta">${sportNom(m.sport_id)} · ${competitionNom(m.competition_id)} · ${escapeHTML(m.date_match)}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px;">
+          <input type="number" min="0" style="width:64px;" data-score-field="score_equipe1" data-match="${m.id}" value="${s && s.score_equipe1 != null ? s.score_equipe1 : ""}" placeholder="${escapeHTML(m.equipe1)}" aria-label="Score de ${escapeHTML(m.equipe1)}">
+          <span>—</span>
+          <input type="number" min="0" style="width:64px;" data-score-field="score_equipe2" data-match="${m.id}" value="${s && s.score_equipe2 != null ? s.score_equipe2 : ""}" placeholder="${escapeHTML(m.equipe2)}" aria-label="Score de ${escapeHTML(m.equipe2)}">
+          <span style="color:var(--gray-500);font-size:0.82rem;margin-left:8px;">Mi-temps (facultatif) :</span>
+          <input type="number" min="0" style="width:64px;" data-score-field="score_mt_equipe1" data-match="${m.id}" value="${s && s.score_mt_equipe1 != null ? s.score_mt_equipe1 : ""}" aria-label="Score mi-temps ${escapeHTML(m.equipe1)}">
+          <span>—</span>
+          <input type="number" min="0" style="width:64px;" data-score-field="score_mt_equipe2" data-match="${m.id}" value="${s && s.score_mt_equipe2 != null ? s.score_mt_equipe2 : ""}" aria-label="Score mi-temps ${escapeHTML(m.equipe2)}">
+        </div>
+      </div>
+      <div class="admin-list-item__actions">
+        <button type="button" data-save-score="${m.id}">Enregistrer le score</button>
+      </div>
+    </div>`;
+  }).join("");
+
+  mount.querySelectorAll("[data-save-score]").forEach((btn) => {
+    btn.addEventListener("click", () => saveScore(btn.dataset.saveScore));
+  });
+}
+
+async function saveScore(matchId) {
+  const readField = (field) => {
+    const el = document.querySelector(`[data-score-field="${field}"][data-match="${matchId}"]`);
+    return el && el.value !== "" ? Number(el.value) : null;
+  };
+  const payload = {
+    match_id: matchId,
+    score_equipe1: readField("score_equipe1"),
+    score_equipe2: readField("score_equipe2"),
+    score_mt_equipe1: readField("score_mt_equipe1"),
+    score_mt_equipe2: readField("score_mt_equipe2")
+  };
+  const existing = scoreForMatch(matchId);
+  const query = existing
+    ? supabaseClient.from("scores").update(payload).eq("match_id", matchId)
+    : supabaseClient.from("scores").insert(payload);
+  const { error } = await query;
+  if (error) { showToast("Erreur : " + error.message, true); return; }
+  showToast("Score enregistré.");
+  await loadScoresPanel();
+}
+
+/* ---------------------------------------------------------
+   SPORTS
+   --------------------------------------------------------- */
+
+function renderSportsList() {
+  const mount = document.getElementById("list-sports");
+  if (!allSports.length) {
+    mount.innerHTML = `<div class="admin-empty">Aucun sport pour le moment.</div>`;
+    return;
+  }
+  mount.innerHTML = allSports.map((s) => `
+    <div class="admin-list-item">
+      <div class="admin-list-item__main">
+        <div class="admin-list-item__title">${escapeHTML(s.icone || "")} ${escapeHTML(s.nom)}</div>
+        <div class="admin-list-item__meta">
+          <span class="badge ${s.actif ? "is-actif" : "is-inactif"}">${s.actif ? "Activé" : "Désactivé"}</span>
+          slug : ${escapeHTML(s.slug)} · ordre ${s.ordre_affichage}
+        </div>
+      </div>
+      <div class="admin-list-item__actions">
+        <button type="button" data-edit="${s.id}">Modifier</button>
+        <button type="button" class="is-danger" data-delete="${s.id}">Supprimer</button>
+      </div>
+    </div>`).join("");
+
+  mount.querySelectorAll("[data-edit]").forEach((btn) => btn.addEventListener("click", () => editSport(btn.dataset.edit)));
+  mount.querySelectorAll("[data-delete]").forEach((btn) => btn.addEventListener("click", () => deleteSport(btn.dataset.delete)));
+}
+
+function editSport(id) {
+  const s = allSports.find((x) => x.id === id);
+  if (!s) return;
+  document.getElementById("sports-id").value = s.id;
+  document.getElementById("sports-nom").value = s.nom;
+  document.getElementById("sports-slug").value = s.slug;
+  document.getElementById("sports-icone").value = s.icone || "";
+  document.getElementById("sports-ordre").value = s.ordre_affichage;
+  document.getElementById("sports-actif").value = String(s.actif);
+  document.getElementById("form-sports-title").textContent = "Modifier le sport";
+  document.getElementById("sports-cancel").style.display = "inline-flex";
+  document.getElementById("form-sports").scrollIntoView({ behavior: "smooth" });
+}
+
+function resetSportForm() {
+  document.getElementById("form-sports").reset();
+  document.getElementById("sports-id").value = "";
+  document.getElementById("form-sports-title").textContent = "Ajouter un sport";
+  document.getElementById("sports-cancel").style.display = "none";
+}
+
+async function deleteSport(id) {
+  if (!confirm("Supprimer définitivement ce sport ? Cela peut échouer s'il est encore utilisé par des compétitions, matchs, pronostics, analyses ou articles.")) return;
+  const { error } = await supabaseClient.from("sports").delete().eq("id", id);
+  if (error) { showToast("Erreur : " + error.message, true); return; }
+  showToast("Sport supprimé.");
+  await loadSports();
+  populateSportSelects();
+  renderSportsList();
+}
+
+function initSportsForm() {
+  document.getElementById("form-sports").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const id = document.getElementById("sports-id").value;
+    const payload = {
+      nom: document.getElementById("sports-nom").value.trim(),
+      slug: document.getElementById("sports-slug").value.trim().toLowerCase(),
+      icone: document.getElementById("sports-icone").value.trim() || null,
+      ordre_affichage: Number(document.getElementById("sports-ordre").value) || 0,
+      actif: document.getElementById("sports-actif").value === "true"
+    };
+    const query = id
+      ? supabaseClient.from("sports").update(payload).eq("id", id)
+      : supabaseClient.from("sports").insert(payload);
+    const { error } = await query;
+    if (error) { showToast("Erreur : " + error.message, true); return; }
+    showToast(id ? "Sport modifié." : "Sport ajouté.");
+    resetSportForm();
+    await loadSports();
+    populateSportSelects();
+    renderSportsList();
+  });
+  document.getElementById("sports-cancel").addEventListener("click", resetSportForm);
+}
+
+/* ---------------------------------------------------------
+   PARTENAIRES (affiliation)
+   --------------------------------------------------------- */
+
+let allPartenaires = [];
+
+async function loadPartenaires() {
+  const { data, error } = await supabaseClient.from("partenaires").select("*").order("ordre_affichage");
+  if (error) { console.error(error); return; }
+  allPartenaires = data || [];
+  renderPartenairesList();
+}
+
+function renderPartenairesList() {
+  const mount = document.getElementById("list-partenaires");
+  if (!allPartenaires.length) {
+    mount.innerHTML = `<div class="admin-empty">Aucun partenaire pour le moment.</div>`;
+    return;
+  }
+  mount.innerHTML = allPartenaires.map((p) => `
+    <div class="admin-list-item">
+      <div class="admin-list-item__main">
+        <div class="admin-list-item__title">${escapeHTML(p.nom)}</div>
+        <div class="admin-list-item__meta">
+          <span class="badge ${p.actif ? "is-actif" : "is-inactif"}">${p.actif ? "Actif" : "Inactif"}</span>
+          ordre ${p.ordre_affichage}${p.url_affiliee ? " · " + escapeHTML(p.url_affiliee) : ""}
+        </div>
+      </div>
+      <div class="admin-list-item__actions">
+        <button type="button" data-edit="${p.id}">Modifier</button>
+        <button type="button" class="is-danger" data-delete="${p.id}">Supprimer</button>
+      </div>
+    </div>`).join("");
+
+  mount.querySelectorAll("[data-edit]").forEach((btn) => btn.addEventListener("click", () => editPartenaire(btn.dataset.edit)));
+  mount.querySelectorAll("[data-delete]").forEach((btn) => btn.addEventListener("click", () => deletePartenaire(btn.dataset.delete)));
+}
+
+function editPartenaire(id) {
+  const p = allPartenaires.find((x) => x.id === id);
+  if (!p) return;
+  document.getElementById("partenaires-id").value = p.id;
+  document.getElementById("partenaires-nom").value = p.nom;
+  document.getElementById("partenaires-logo").value = p.logo_url || "";
+  document.getElementById("partenaires-url").value = p.url_affiliee || "";
+  document.getElementById("partenaires-ordre").value = p.ordre_affichage;
+  document.getElementById("partenaires-actif").value = String(p.actif);
+  document.getElementById("form-partenaires-title").textContent = "Modifier le partenaire";
+  document.getElementById("partenaires-cancel").style.display = "inline-flex";
+  document.getElementById("form-partenaires").scrollIntoView({ behavior: "smooth" });
+}
+
+function resetPartenaireForm() {
+  document.getElementById("form-partenaires").reset();
+  document.getElementById("partenaires-id").value = "";
+  document.getElementById("form-partenaires-title").textContent = "Ajouter un partenaire";
+  document.getElementById("partenaires-cancel").style.display = "none";
+}
+
+async function deletePartenaire(id) {
+  if (!confirm("Supprimer définitivement ce partenaire ?")) return;
+  const { error } = await supabaseClient.from("partenaires").delete().eq("id", id);
+  if (error) { showToast("Erreur : " + error.message, true); return; }
+  showToast("Partenaire supprimé.");
+  await loadPartenaires();
+}
+
+function initPartenairesForm() {
+  document.getElementById("form-partenaires").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const id = document.getElementById("partenaires-id").value;
+    const payload = {
+      nom: document.getElementById("partenaires-nom").value.trim(),
+      logo_url: document.getElementById("partenaires-logo").value.trim() || null,
+      url_affiliee: document.getElementById("partenaires-url").value.trim() || null,
+      ordre_affichage: Number(document.getElementById("partenaires-ordre").value) || 0,
+      actif: document.getElementById("partenaires-actif").value === "true"
+    };
+    const query = id
+      ? supabaseClient.from("partenaires").update(payload).eq("id", id)
+      : supabaseClient.from("partenaires").insert(payload);
+    const { error } = await query;
+    if (error) { showToast("Erreur : " + error.message, true); return; }
+    showToast(id ? "Partenaire modifié." : "Partenaire ajouté.");
+    resetPartenaireForm();
+    await loadPartenaires();
+  });
+  document.getElementById("partenaires-cancel").addEventListener("click", resetPartenaireForm);
+}
+
+/* ---------------------------------------------------------
    INITIALISATION GÉNÉRALE
    --------------------------------------------------------- */
 
@@ -593,5 +949,8 @@ document.addEventListener("DOMContentLoaded", () => {
   initPronosticsForm();
   initAnalysesForm();
   initArticlesForm();
+  initMatchsForm();
+  initSportsForm();
+  initPartenairesForm();
   initAuth();
-});
+});h
