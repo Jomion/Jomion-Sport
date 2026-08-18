@@ -20,7 +20,7 @@ const PAYS_FOOTBALL = [
   "Mozambique", "Niger", "Nigeria", "Norvège", "Pays-Bas", "Pérou", "Pologne",
   "Portugal", "République Démocratique du Congo", "Congo", "Roumanie", "Royaume-Uni",
   "Russie", "Sénégal", "Serbie", "Suède", "Suisse", "Tanzanie", "Togo", "Tunisie",
-  "Turquie", "Uruguay", "Zambie"
+  "Turquie", "Uruguay", "Zambie", "Émirats arabes unis", "Qatar", "Inde"
 ].sort((a, b) => a.localeCompare(b, "fr"));
 
 /* ---------------------------------------------------------
