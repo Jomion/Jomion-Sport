@@ -35,6 +35,10 @@ function escapeHTML(str) {
 
 function showToast(message, isError) {
   const toast = document.getElementById("admin-toast");
+  if (!toast) {
+    console.warn(message);
+    return;
+  }
   toast.textContent = message;
   toast.classList.toggle("is-error", !!isError);
   toast.classList.add("is-visible");
@@ -146,8 +150,6 @@ function initLoginForm() {
 /* ---------------------------------------------------------
    ONGLETS
    --------------------------------------------------------- */
-
-function initTabs() {
 
 function initTabs() {
   document.querySelectorAll(".admin-tab").forEach((btn) => {
@@ -536,6 +538,10 @@ async function deletePronostic(id) {
 function initPronosticsForm() {
   document.getElementById("form-pronostics").addEventListener("submit", async (e) => {
     e.preventDefault();
+    if (!currentUser) {
+      showToast("Vous devez être connecté pour enregistrer un pronostic.", true);
+      return;
+    }
     const id = document.getElementById("pronostics-id").value;
     const payload = {
       sport_id: document.getElementById("pronostics-sport").value,
@@ -640,6 +646,10 @@ async function deleteAnalyse(id) {
 function initAnalysesForm() {
   document.getElementById("form-analyses").addEventListener("submit", async (e) => {
     e.preventDefault();
+    if (!currentUser) {
+      showToast("Vous devez être connecté pour enregistrer une analyse.", true);
+      return;
+    }
     const id = document.getElementById("analyses-id").value;
     const payload = {
       titre: document.getElementById("analyses-titre").value.trim(),
@@ -902,8 +912,6 @@ function renderScoresPanelList() {
       <div class="admin-list-item__main">
         <div class="admin-list-item__title">${escapeHTML(m.equipe1)} vs ${escapeHTML(m.equipe2)}</div>
         <div class="admin-list-item__meta">${sportNom(m.sport_id)} · ${competitionNom(m.competition_id)} · ${escapeHTML(m.date_match)}</div>
-
-                <div class="admin-list-item__meta">${sportNom(m.sport_id)} · ${competitionNom(m.competition_id)} · ${escapeHTML(m.date_match)}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px;">
           <input type="number" min="0" style="width:64px;" data-score-field="score_equipe1" data-match="${m.id}" value="${s && s.score_equipe1 != null ? s.score_equipe1 : ""}" placeholder="${escapeHTML(m.equipe1)}" aria-label="Score de ${escapeHTML(m.equipe1)}">
           <span>—</span>
