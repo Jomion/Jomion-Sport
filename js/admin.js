@@ -652,7 +652,6 @@ function initAnalysesForm() {
       auteur_id: currentUser.id
     };
 
-       };
     const query = id
       ? supabaseClient.from("analyses").update(payload).eq("id", id)
       : supabaseClient.from("analyses").insert(payload);
