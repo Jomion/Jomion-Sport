@@ -59,6 +59,7 @@
       <button class="admin-tab" data-tab="matchs" role="tab" aria-selected="false">Matchs</button>
       <button class="admin-tab" data-tab="scores" role="tab" aria-selected="false">Scores</button>
       <button class="admin-tab" data-tab="sports" role="tab" aria-selected="false">Sports</button>
+      <button class="admin-tab" data-tab="equipes" role="tab" aria-selected="false">Équipes</button>
       <button class="admin-tab" data-tab="partenaires" role="tab" aria-selected="false">Partenaires</button>
     </nav>
 
@@ -118,11 +119,13 @@
           </div>
           <div class="form-field">
             <label for="pronostics-equipe1">Équipe / joueur 1</label>
-            <input type="text" id="pronostics-equipe1" required>
+            <select id="pronostics-equipe1"></select>
+            <input type="text" id="pronostics-equipe1-autre" placeholder="Absent de la liste ? Saisissez le nom ici" style="margin-top:6px;">
           </div>
           <div class="form-field">
             <label for="pronostics-equipe2">Équipe / joueur 2</label>
-            <input type="text" id="pronostics-equipe2" required>
+            <select id="pronostics-equipe2"></select>
+            <input type="text" id="pronostics-equipe2-autre" placeholder="Absent de la liste ? Saisissez le nom ici" style="margin-top:6px;">
           </div>
           <div class="form-field">
             <label for="pronostics-date">Date</label>
@@ -155,7 +158,7 @@
           <div class="form-field">
             <label for="pronostics-publie">Publication</label>
             <select id="pronostics-publie">
-              <option value="false">Brouillon (invisible sur le site)</option>
+                            <option value="false">Brouillon (invisible sur le site)</option>
               <option value="true">Publié (visible sur le site)</option>
             </select>
           </div>
@@ -295,15 +298,17 @@
           </div>
           <div class="form-field">
             <label for="matchs-pays">Pays (facultatif)</label>
-            <input type="text" id="matchs-pays" placeholder="Ex. Angleterre">
+            <select id="matchs-pays" class="pays-select"></select>
           </div>
           <div class="form-field">
             <label for="matchs-equipe1">Équipe / joueur 1</label>
-            <input type="text" id="matchs-equipe1" required>
+            <select id="matchs-equipe1"></select>
+            <input type="text" id="matchs-equipe1-autre" placeholder="Absent de la liste ? Saisissez le nom ici" style="margin-top:6px;">
           </div>
           <div class="form-field">
             <label for="matchs-equipe2">Équipe / joueur 2</label>
-            <input type="text" id="matchs-equipe2" required>
+            <select id="matchs-equipe2"></select>
+            <input type="text" id="matchs-equipe2-autre" placeholder="Absent de la liste ? Saisissez le nom ici" style="margin-top:6px;">
           </div>
           <div class="form-field">
             <label for="matchs-date">Date</label>
@@ -323,6 +328,7 @@
             </select>
           </div>
         </div>
+                </div>
         <div class="admin-form-actions">
           <button type="submit" class="btn btn--primary">Enregistrer</button>
           <button type="button" class="btn btn--outline" id="matchs-cancel" style="display:none;">Annuler la modification</button>
@@ -379,6 +385,40 @@
         <p class="admin-form-note">Le « slug » doit être unique et sans accents ni espaces (ex. « football », « basketball »). Il sert notamment aux filtres du site.</p>
       </form>
       <div class="admin-list" id="list-sports">
+        <div class="admin-loading">Chargement…</div>
+      </div>
+    </section>
+
+    <!-- ===================== ÉQUIPES ===================== -->
+    <section class="admin-panel" id="panel-equipes">
+      <form class="admin-form" id="form-equipes">
+        <h2 id="form-equipes-title">Ajouter une équipe / un joueur</h2>
+        <input type="hidden" id="equipes-id" value="">
+        <div class="admin-form-grid">
+          <div class="form-field">
+            <label for="equipes-nom">Nom</label>
+            <input type="text" id="equipes-nom" required placeholder="Ex. Olympique de Marseille">
+          </div>
+          <div class="form-field">
+            <label for="equipes-sport">Sport</label>
+            <select id="equipes-sport" required></select>
+          </div>
+          <div class="form-field">
+            <label for="equipes-pays">Pays (facultatif)</label>
+            <select id="equipes-pays" class="pays-select"></select>
+          </div>
+          <div class="form-field">
+            <label for="equipes-competition">Compétition (facultatif)</label>
+            <select id="equipes-competition"></select>
+          </div>
+        </div>
+        <div class="admin-form-actions">
+          <button type="submit" class="btn btn--primary">Enregistrer</button>
+          <button type="button" class="btn btn--outline" id="equipes-cancel" style="display:none;">Annuler la modification</button>
+        </div>
+        <p class="admin-form-note">Cette liste alimente les menus déroulants « Équipe / joueur » des formulaires Matchs et Pronostics. Ajoutez ici chaque équipe que vous utilisez régulièrement — inutile d'y mettre toutes les équipes du monde : vous pourrez toujours saisir un nom manuellement dans les formulaires s'il manque à la liste.</p>
+      </form>
+      <div class="admin-list" id="list-equipes">
         <div class="admin-loading">Chargement…</div>
       </div>
     </section>
