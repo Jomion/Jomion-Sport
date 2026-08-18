@@ -9,6 +9,19 @@
 let currentUser = null;
 let allSports = [];
 let allCompetitions = [];
+let allEquipes = [];
+
+const PAYS_FOOTBALL = [
+  "Afrique du Sud", "Algérie", "Allemagne", "Angleterre", "Angola", "Arabie Saoudite",
+  "Argentine", "Autriche", "Belgique", "Bénin", "Brésil", "Burkina Faso", "Cameroun",
+  "Cap-Vert", "Chili", "Chine", "Colombie", "Corée du Sud", "Côte d'Ivoire", "Croatie",
+  "Danemark", "Égypte", "Équateur", "Espagne", "États-Unis", "Éthiopie", "France",
+  "Gabon", "Ghana", "Guinée", "Italie", "Japon", "Kenya", "Mali", "Maroc", "Mexique",
+  "Mozambique", "Niger", "Nigeria", "Norvège", "Pays-Bas", "Pérou", "Pologne",
+  "Portugal", "République Démocratique du Congo", "Congo", "Roumanie", "Royaume-Uni",
+  "Russie", "Sénégal", "Serbie", "Suède", "Suisse", "Tanzanie", "Togo", "Tunisie",
+  "Turquie", "Uruguay", "Zambie"
+].sort((a, b) => a.localeCompare(b, "fr"));
 
 /* ---------------------------------------------------------
    UTILITAIRES
@@ -135,6 +148,8 @@ function initLoginForm() {
    --------------------------------------------------------- */
 
 function initTabs() {
+
+function initTabs() {
   document.querySelectorAll(".admin-tab").forEach((btn) => {
     btn.addEventListener("click", () => {
       document.querySelectorAll(".admin-tab").forEach((b) => {
@@ -155,8 +170,14 @@ function initTabs() {
 async function loadEverything() {
   await loadSports();
   await loadCompetitions();
+  await loadEquipes();
   populateSportSelects();
   populateCompetitionSelects();
+  populatePaysSelects();
+  wireEquipeSelect("matchs-equipe1", "matchs-sport");
+  wireEquipeSelect("matchs-equipe2", "matchs-sport");
+  wireEquipeSelect("pronostics-equipe1", "pronostics-sport");
+  wireEquipeSelect("pronostics-equipe2", "pronostics-sport");
   await loadPronostics();
   await loadAnalyses();
   await loadArticles();
@@ -174,11 +195,19 @@ async function loadSports() {
 
 function populateSportSelects() {
   const options = allSports.map((s) => `<option value="${s.id}">${escapeHTML(s.icone || "")} ${escapeHTML(s.nom)}</option>`).join("");
-  ["competitions-sport", "pronostics-sport", "analyses-sport", "matchs-sport"].forEach((id) => {
+  ["competitions-sport", "pronostics-sport", "analyses-sport", "matchs-sport", "equipes-sport"].forEach((id) => {
     document.getElementById(id).innerHTML = options;
   });
   // Le sport est facultatif pour un article
   document.getElementById("articles-sport").innerHTML = `<option value="">— Aucun —</option>` + options;
+}
+
+function populatePaysSelects() {
+  const options = `<option value="">— Aucun —</option>` +
+    PAYS_FOOTBALL.map((p) => `<option value="${escapeHTML(p)}">${escapeHTML(p)}</option>`).join("");
+  document.querySelectorAll("select.pays-select").forEach((sel) => {
+    sel.innerHTML = options;
+  });
 }
 
 /* ---------------------------------------------------------
@@ -193,7 +222,7 @@ async function loadCompetitions() {
 }
 
 function populateCompetitionSelects() {
-  ["pronostics-competition", "analyses-competition", "matchs-competition"].forEach((id) => {
+  ["pronostics-competition", "analyses-competition", "matchs-competition", "equipes-competition"].forEach((id) => {
     const select = document.getElementById(id);
     const sportSelectId = id.replace("competition", "sport");
     const sportSelect = document.getElementById(sportSelectId);
@@ -207,6 +236,145 @@ function fillCompetitionSelect(selectEl, sportId, selectedId) {
   selectEl.innerHTML = `<option value="">— Aucune —</option>` +
     filtered.map((c) => `<option value="${c.id}">${escapeHTML(c.nom)}</option>`).join("");
   if (selectedId) selectEl.value = selectedId;
+}
+
+/* ---------------------------------------------------------
+   ÉQUIPES (liste de sélection pour Matchs / Pronostics)
+   --------------------------------------------------------- */
+
+async function loadEquipes() {
+  const { data, error } = await supabaseClient.from("equipes").select("*").order("nom");
+  if (error) { console.error(error); return; }
+  allEquipes = data || [];
+  renderEquipesList();
+}
+
+// Remplit un <select> d'équipes filtré par sport (et affecte la valeur
+// sélectionnée si elle existe dans la liste). Utilisé par les formulaires
+// Matchs et Pronostics, et rebranché à chaque changement de sport.
+function fillEquipeSelect(selectEl, sportId, selectedNom) {
+  const filtered = sportId ? allEquipes.filter((e) => e.sport_id === sportId) : allEquipes;
+  selectEl.innerHTML = `<option value="">— Choisir dans la liste —</option>` +
+    filtered.map((e) => `<option value="${escapeHTML(e.nom)}">${escapeHTML(e.nom)}${e.pays ? " (" + escapeHTML(e.pays) + ")" : ""}</option>`).join("");
+  if (selectedNom && filtered.some((e) => e.nom === selectedNom)) {
+    selectEl.value = selectedNom;
+  }
+}
+
+// Branche un select d'équipe + son champ "saisie libre" de secours sur le
+// select de sport correspondant, pour que la liste se filtre automatiquement.
+function wireEquipeSelect(selectId, sportSelectId) {
+  const select = document.getElementById(selectId);
+  const sportSelect = document.getElementById(sportSelectId);
+  fillEquipeSelect(select, sportSelect.value);
+  sportSelect.addEventListener("change", () => fillEquipeSelect(select, sportSelect.value));
+}
+
+// Place la bonne valeur dans un select d'équipe en mode "modification" :
+// si le nom existe dans la liste, on le sélectionne ; sinon on le met
+// dans le champ de saisie libre (cas d'un nom entré manuellement).
+function setEquipeFieldValue(selectId, autreId, sportId, nom) {
+  const select = document.getElementById(selectId);
+  const autre = document.getElementById(autreId);
+  fillEquipeSelect(select, sportId, nom);
+  if (nom && select.value === nom) {
+    autre.value = "";
+  } else {
+    select.value = "";
+    autre.value = nom || "";
+  }
+}
+
+// Renvoie le nom d'équipe à enregistrer : la saisie libre prime sur le select.
+function readEquipeFieldValue(selectId, autreId) {
+  const autre = document.getElementById(autreId).value.trim();
+  if (autre) return autre;
+  return document.getElementById(selectId).value;
+}
+
+function renderEquipesList() {
+  const mount = document.getElementById("list-equipes");
+  if (!allEquipes.length) {
+    mount.innerHTML = `<div class="admin-empty">Aucune équipe pour le moment.</div>`;
+    return;
+  }
+  mount.innerHTML = allEquipes.map((e) => `
+    <div class="admin-list-item">
+      <div class="admin-list-item__main">
+        <div class="admin-list-item__title">${escapeHTML(e.nom)}</div>
+        <div class="admin-list-item__meta">
+          ${sportNom(e.sport_id)}${e.pays ? " · " + escapeHTML(e.pays) : ""}${e.competition_id ? " · " + competitionNom(e.competition_id) : ""}
+        </div>
+      </div>
+      <div class="admin-list-item__actions">
+        <button type="button" data-edit="${e.id}">Modifier</button>
+        <button type="button" class="is-danger" data-delete="${e.id}">Supprimer</button>
+      </div>
+    </div>`).join("");
+
+  mount.querySelectorAll("[data-edit]").forEach((btn) => btn.addEventListener("click", () => editEquipe(btn.dataset.edit)));
+  mount.querySelectorAll("[data-delete]").forEach((btn) => btn.addEventListener("click", () => deleteEquipe(btn.dataset.delete)));
+}
+
+function editEquipe(id) {
+  const e = allEquipes.find((x) => x.id === id);
+  if (!e) return;
+  document.getElementById("equipes-id").value = e.id;
+  document.getElementById("equipes-nom").value = e.nom;
+  document.getElementById("equipes-sport").value = e.sport_id;
+  document.getElementById("equipes-pays").value = e.pays || "";
+  fillCompetitionSelect(document.getElementById("equipes-competition"), e.sport_id, e.competition_id);
+  document.getElementById("form-equipes-title").textContent = "Modifier l'équipe";
+  document.getElementById("equipes-cancel").style.display = "inline-flex";
+  document.getElementById("form-equipes").scrollIntoView({ behavior: "smooth" });
+}
+
+function resetEquipeForm() {
+  document.getElementById("form-equipes").reset();
+  document.getElementById("equipes-id").value = "";
+  document.getElementById("form-equipes-title").textContent = "Ajouter une équipe / un joueur";
+  document.getElementById("equipes-cancel").style.display = "none";
+}
+
+async function deleteEquipe(id) {
+  if (!confirm("Supprimer définitivement cette équipe de la liste ?")) return;
+  const { error } = await supabaseClient.from("equipes").delete().eq("id", id);
+  if (error) { showToast("Erreur : " + error.message, true); return; }
+  showToast("Équipe supprimée.");
+  await loadEquipes();
+  refreshAllEquipeSelects();
+}
+
+function initEquipesForm() {
+  document.getElementById("form-equipes").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const id = document.getElementById("equipes-id").value;
+    const payload = {
+      nom: document.getElementById("equipes-nom").value.trim(),
+      sport_id: document.getElementById("equipes-sport").value,
+      pays: document.getElementById("equipes-pays").value || null,
+      competition_id: document.getElementById("equipes-competition").value || null
+    };
+    const query = id
+      ? supabaseClient.from("equipes").update(payload).eq("id", id)
+      : supabaseClient.from("equipes").insert(payload);
+    const { error } = await query;
+    if (error) { showToast("Erreur : " + error.message, true); return; }
+    showToast(id ? "Équipe modifiée." : "Équipe ajoutée.");
+    resetEquipeForm();
+    await loadEquipes();
+    refreshAllEquipeSelects();
+  });
+  document.getElementById("equipes-cancel").addEventListener("click", resetEquipeForm);
+}
+
+// Rafraîchit les 4 listes déroulantes d'équipes (Matchs + Pronostics)
+// après un ajout/modification/suppression dans l'onglet Équipes.
+function refreshAllEquipeSelects() {
+  fillEquipeSelect(document.getElementById("matchs-equipe1"), document.getElementById("matchs-sport").value);
+  fillEquipeSelect(document.getElementById("matchs-equipe2"), document.getElementById("matchs-sport").value);
+  fillEquipeSelect(document.getElementById("pronostics-equipe1"), document.getElementById("pronostics-sport").value);
+  fillEquipeSelect(document.getElementById("pronostics-equipe2"), document.getElementById("pronostics-sport").value);
 }
 
 function renderCompetitionsList() {
@@ -232,7 +400,8 @@ function renderCompetitionsList() {
 
   mount.querySelectorAll("[data-edit]").forEach((btn) => btn.addEventListener("click", () => editCompetition(btn.dataset.edit)));
   mount.querySelectorAll("[data-delete]").forEach((btn) => btn.addEventListener("click", () => deleteCompetition(btn.dataset.delete)));
-}
+
+   }
 
 function editCompetition(id) {
   const c = allCompetitions.find((x) => x.id === id);
@@ -332,8 +501,8 @@ function editPronostic(id) {
   document.getElementById("pronostics-id").value = p.id;
   document.getElementById("pronostics-sport").value = p.sport_id;
   fillCompetitionSelect(document.getElementById("pronostics-competition"), p.sport_id, p.competition_id);
-  document.getElementById("pronostics-equipe1").value = p.equipe1;
-  document.getElementById("pronostics-equipe2").value = p.equipe2;
+  setEquipeFieldValue("pronostics-equipe1", "pronostics-equipe1-autre", p.sport_id, p.equipe1);
+  setEquipeFieldValue("pronostics-equipe2", "pronostics-equipe2-autre", p.sport_id, p.equipe2);
   document.getElementById("pronostics-date").value = p.date_match;
   document.getElementById("pronostics-heure").value = p.heure_match || "";
   document.getElementById("pronostics-pick").value = p.pronostic;
@@ -350,6 +519,8 @@ function editPronostic(id) {
 function resetPronosticForm() {
   document.getElementById("form-pronostics").reset();
   document.getElementById("pronostics-id").value = "";
+  fillEquipeSelect(document.getElementById("pronostics-equipe1"), document.getElementById("pronostics-sport").value);
+  fillEquipeSelect(document.getElementById("pronostics-equipe2"), document.getElementById("pronostics-sport").value);
   document.getElementById("form-pronostics-title").textContent = "Ajouter un pronostic";
   document.getElementById("pronostics-cancel").style.display = "none";
 }
@@ -369,8 +540,8 @@ function initPronosticsForm() {
     const payload = {
       sport_id: document.getElementById("pronostics-sport").value,
       competition_id: document.getElementById("pronostics-competition").value || null,
-      equipe1: document.getElementById("pronostics-equipe1").value.trim(),
-      equipe2: document.getElementById("pronostics-equipe2").value.trim(),
+      equipe1: readEquipeFieldValue("pronostics-equipe1", "pronostics-equipe1-autre"),
+      equipe2: readEquipeFieldValue("pronostics-equipe2", "pronostics-equipe2-autre"),
       date_match: document.getElementById("pronostics-date").value,
       heure_match: document.getElementById("pronostics-heure").value || null,
       pronostic: document.getElementById("pronostics-pick").value.trim(),
@@ -381,6 +552,10 @@ function initPronosticsForm() {
       publie: document.getElementById("pronostics-publie").value === "true",
       auteur_id: currentUser.id
     };
+    if (!payload.equipe1 || !payload.equipe2) {
+      showToast("Choisissez ou saisissez les deux équipes/joueurs.", true);
+      return;
+    }
     const query = id
       ? supabaseClient.from("pronostics").update(payload).eq("id", id)
       : supabaseClient.from("pronostics").insert(payload);
@@ -476,6 +651,8 @@ function initAnalysesForm() {
       conclusion: document.getElementById("analyses-conclusion").value.trim() || null,
       auteur_id: currentUser.id
     };
+
+       };
     const query = id
       ? supabaseClient.from("analyses").update(payload).eq("id", id)
       : supabaseClient.from("analyses").insert(payload);
@@ -631,8 +808,8 @@ function editMatch(id) {
   document.getElementById("matchs-sport").value = m.sport_id;
   fillCompetitionSelect(document.getElementById("matchs-competition"), m.sport_id, m.competition_id);
   document.getElementById("matchs-pays").value = m.pays || "";
-  document.getElementById("matchs-equipe1").value = m.equipe1;
-  document.getElementById("matchs-equipe2").value = m.equipe2;
+  setEquipeFieldValue("matchs-equipe1", "matchs-equipe1-autre", m.sport_id, m.equipe1);
+  setEquipeFieldValue("matchs-equipe2", "matchs-equipe2-autre", m.sport_id, m.equipe2);
   document.getElementById("matchs-date").value = m.date_match;
   document.getElementById("matchs-heure").value = m.heure_match || "";
   document.getElementById("matchs-statut").value = m.statut;
@@ -644,6 +821,8 @@ function editMatch(id) {
 function resetMatchForm() {
   document.getElementById("form-matchs").reset();
   document.getElementById("matchs-id").value = "";
+  fillEquipeSelect(document.getElementById("matchs-equipe1"), document.getElementById("matchs-sport").value);
+  fillEquipeSelect(document.getElementById("matchs-equipe2"), document.getElementById("matchs-sport").value);
   document.getElementById("form-matchs-title").textContent = "Ajouter un match";
   document.getElementById("matchs-cancel").style.display = "none";
 }
@@ -664,13 +843,17 @@ function initMatchsForm() {
     const payload = {
       sport_id: document.getElementById("matchs-sport").value,
       competition_id: document.getElementById("matchs-competition").value || null,
-      pays: document.getElementById("matchs-pays").value.trim() || null,
-      equipe1: document.getElementById("matchs-equipe1").value.trim(),
-      equipe2: document.getElementById("matchs-equipe2").value.trim(),
+      pays: document.getElementById("matchs-pays").value || null,
+      equipe1: readEquipeFieldValue("matchs-equipe1", "matchs-equipe1-autre"),
+      equipe2: readEquipeFieldValue("matchs-equipe2", "matchs-equipe2-autre"),
       date_match: document.getElementById("matchs-date").value,
       heure_match: document.getElementById("matchs-heure").value || null,
       statut: document.getElementById("matchs-statut").value
     };
+    if (!payload.equipe1 || !payload.equipe2) {
+      showToast("Choisissez ou saisissez les deux équipes/joueurs.", true);
+      return;
+    }
     const query = id
       ? supabaseClient.from("matchs").update(payload).eq("id", id)
       : supabaseClient.from("matchs").insert(payload);
@@ -720,6 +903,8 @@ function renderScoresPanelList() {
       <div class="admin-list-item__main">
         <div class="admin-list-item__title">${escapeHTML(m.equipe1)} vs ${escapeHTML(m.equipe2)}</div>
         <div class="admin-list-item__meta">${sportNom(m.sport_id)} · ${competitionNom(m.competition_id)} · ${escapeHTML(m.date_match)}</div>
+
+                <div class="admin-list-item__meta">${sportNom(m.sport_id)} · ${competitionNom(m.competition_id)} · ${escapeHTML(m.date_match)}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px;">
           <input type="number" min="0" style="width:64px;" data-score-field="score_equipe1" data-match="${m.id}" value="${s && s.score_equipe1 != null ? s.score_equipe1 : ""}" placeholder="${escapeHTML(m.equipe1)}" aria-label="Score de ${escapeHTML(m.equipe1)}">
           <span>—</span>
@@ -950,7 +1135,8 @@ document.addEventListener("DOMContentLoaded", () => {
   initAnalysesForm();
   initArticlesForm();
   initMatchsForm();
+  initEquipesForm();
   initSportsForm();
   initPartenairesForm();
   initAuth();
-});h
+});
