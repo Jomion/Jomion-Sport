@@ -174,12 +174,10 @@ async function loadEverything() {
   await loadCompetitions();
   await loadEquipes();
   populateSportSelects();
-  populateCompetitionSelects();
   populatePaysSelects();
-  wireEquipeSelect("matchs-equipe1", "matchs-sport");
-  wireEquipeSelect("matchs-equipe2", "matchs-sport");
-  wireEquipeSelect("pronostics-equipe1", "pronostics-sport");
-  wireEquipeSelect("pronostics-equipe2", "pronostics-sport");
+  populateCompetitionSelects();
+  initFormCascade("matchs", true);
+  initFormCascade("pronostics", true);
   await loadPronostics();
   await loadAnalyses();
   await loadArticles();
@@ -223,8 +221,11 @@ async function loadCompetitions() {
   renderCompetitionsList();
 }
 
+// Utilisé pour les listes "simples" (Analyses, Équipes) qui ne filtrent
+// que par sport. Les formulaires Matchs/Pronostics utilisent plutôt
+// initFormCascade() ci-dessous, qui ajoute le filtre par pays.
 function populateCompetitionSelects() {
-  ["pronostics-competition", "analyses-competition", "matchs-competition", "equipes-competition"].forEach((id) => {
+  ["analyses-competition", "equipes-competition"].forEach((id) => {
     const select = document.getElementById(id);
     const sportSelectId = id.replace("competition", "sport");
     const sportSelect = document.getElementById(sportSelectId);
@@ -233,11 +234,14 @@ function populateCompetitionSelects() {
   });
 }
 
-function fillCompetitionSelect(selectEl, sportId, selectedId) {
-  const filtered = sportId ? allCompetitions.filter((c) => c.sport_id === sportId) : allCompetitions;
+function fillCompetitionSelect(selectEl, sportId, selectedId, pays) {
+  let filtered = sportId ? allCompetitions.filter((c) => c.sport_id === sportId) : allCompetitions;
+  if (pays) filtered = filtered.filter((c) => c.pays === pays);
   selectEl.innerHTML = `<option value="">— Aucune —</option>` +
-    filtered.map((c) => `<option value="${c.id}">${escapeHTML(c.nom)}</option>`).join("");
-  if (selectedId) selectEl.value = selectedId;
+    filtered.map((c) => `<option value="${c.id}">${escapeHTML(c.nom)}${c.pays ? " (" + escapeHTML(c.pays) + ")" : ""}</option>`).join("");
+  if (selectedId && filtered.some((c) => c.id === selectedId)) {
+    selectEl.value = selectedId;
+  }
 }
 
 /* ---------------------------------------------------------
@@ -251,11 +255,27 @@ async function loadEquipes() {
   renderEquipesList();
 }
 
-// Remplit un <select> d'équipes filtré par sport (et affecte la valeur
-// sélectionnée si elle existe dans la liste). Utilisé par les formulaires
-// Matchs et Pronostics, et rebranché à chaque changement de sport.
-function fillEquipeSelect(selectEl, sportId, selectedNom) {
-  const filtered = sportId ? allEquipes.filter((e) => e.sport_id === sportId) : allEquipes;
+// Remplit un <select> d'équipes filtré par sport, et si possible par
+// compétition ou par pays (extra = { competitionId, pays }). Si le filtre
+// le plus précis (compétition) ne donne aucun résultat, on retombe sur le
+// pays, puis sur le sport seul — pour ne jamais afficher une liste vide.
+function fillEquipeSelect(selectEl, sportId, selectedNom, extra) {
+  extra = extra || {};
+  let filtered = sportId ? allEquipes.filter((e) => e.sport_id === sportId) : allEquipes.slice();
+
+  if (extra.competitionId) {
+    const parCompetition = filtered.filter((e) => e.competition_id === extra.competitionId);
+    if (parCompetition.length) {
+      filtered = parCompetition;
+    } else if (extra.pays) {
+      const parPays = filtered.filter((e) => e.pays === extra.pays);
+      if (parPays.length) filtered = parPays;
+    }
+  } else if (extra.pays) {
+    const parPays = filtered.filter((e) => e.pays === extra.pays);
+    if (parPays.length) filtered = parPays;
+  }
+
   selectEl.innerHTML = `<option value="">— Choisir dans la liste —</option>` +
     filtered.map((e) => `<option value="${escapeHTML(e.nom)}">${escapeHTML(e.nom)}${e.pays ? " (" + escapeHTML(e.pays) + ")" : ""}</option>`).join("");
   if (selectedNom && filtered.some((e) => e.nom === selectedNom)) {
@@ -263,22 +283,64 @@ function fillEquipeSelect(selectEl, sportId, selectedNom) {
   }
 }
 
-// Branche un select d'équipe + son champ "saisie libre" de secours sur le
-// select de sport correspondant, pour que la liste se filtre automatiquement.
-function wireEquipeSelect(selectId, sportSelectId) {
-  const select = document.getElementById(selectId);
-  const sportSelect = document.getElementById(sportSelectId);
-  fillEquipeSelect(select, sportSelect.value);
-  sportSelect.addEventListener("change", () => fillEquipeSelect(select, sportSelect.value));
+// Met en place le filtrage croisé Sport ↔ Compétition ↔ Pays ↔ Équipes
+// pour un formulaire donné ("matchs" ou "pronostics") :
+//   - changer le sport   → filtre la compétition et les équipes
+//   - changer la compétition → renseigne automatiquement le pays (s'il est
+//     connu) et filtre les équipes sur cette compétition
+//   - changer le pays    → filtre la compétition sur ce pays et les
+//     équipes sur ce pays
+function initFormCascade(prefix, hasPays) {
+  const sportSel = document.getElementById(prefix + "-sport");
+  const compSel = document.getElementById(prefix + "-competition");
+  const paysSel = hasPays ? document.getElementById(prefix + "-pays") : null;
+  const eq1 = document.getElementById(prefix + "-equipe1");
+  const eq2 = document.getElementById(prefix + "-equipe2");
+
+  function refreshEquipes() {
+    const extra = {
+      competitionId: compSel.value || null,
+      pays: paysSel ? paysSel.value : ""
+    };
+    fillEquipeSelect(eq1, sportSel.value, eq1.value, extra);
+    fillEquipeSelect(eq2, sportSel.value, eq2.value, extra);
+  }
+
+  // Remplissage initial
+  fillCompetitionSelect(compSel, sportSel.value);
+  refreshEquipes();
+
+  sportSel.addEventListener("change", () => {
+    fillCompetitionSelect(compSel, sportSel.value);
+    if (paysSel) paysSel.value = "";
+    refreshEquipes();
+  });
+
+  compSel.addEventListener("change", () => {
+    const comp = allCompetitions.find((c) => c.id === compSel.value);
+    if (paysSel && comp && comp.pays) {
+      const optionExiste = Array.from(paysSel.options).some((o) => o.value === comp.pays);
+      if (optionExiste) paysSel.value = comp.pays;
+    }
+    refreshEquipes();
+  });
+
+  if (paysSel) {
+    paysSel.addEventListener("change", () => {
+      fillCompetitionSelect(compSel, sportSel.value, compSel.value, paysSel.value);
+      refreshEquipes();
+    });
+  }
 }
 
 // Place la bonne valeur dans un select d'équipe en mode "modification" :
-// si le nom existe dans la liste, on le sélectionne ; sinon on le met
-// dans le champ de saisie libre (cas d'un nom entré manuellement).
-function setEquipeFieldValue(selectId, autreId, sportId, nom) {
+// si le nom existe dans la liste (compte tenu du sport/compétition/pays
+// déjà sélectionnés), on le sélectionne ; sinon on le met dans le champ de
+// saisie libre (cas d'un nom entré manuellement).
+function setEquipeFieldValue(selectId, autreId, sportId, nom, extra) {
   const select = document.getElementById(selectId);
   const autre = document.getElementById(autreId);
-  fillEquipeSelect(select, sportId, nom);
+  fillEquipeSelect(select, sportId, nom, extra);
   if (nom && select.value === nom) {
     autre.value = "";
   } else {
@@ -303,7 +365,7 @@ function renderEquipesList() {
   mount.innerHTML = allEquipes.map((e) => `
     <div class="admin-list-item">
       <div class="admin-list-item__main">
-        <div class="admin-list-item__title">${escapeHTML(e.nom)}</div>
+        <div class="admin-list-item__title">${e.logo_url ? `<img src="${escapeHTML(e.logo_url)}" alt="" style="width:20px;height:20px;object-fit:contain;vertical-align:middle;margin-right:6px;">` : ""}${escapeHTML(e.nom)}</div>
         <div class="admin-list-item__meta">
           ${sportNom(e.sport_id)}${e.pays ? " · " + escapeHTML(e.pays) : ""}${e.competition_id ? " · " + competitionNom(e.competition_id) : ""}
         </div>
@@ -325,6 +387,7 @@ function editEquipe(id) {
   document.getElementById("equipes-nom").value = e.nom;
   document.getElementById("equipes-sport").value = e.sport_id;
   document.getElementById("equipes-pays").value = e.pays || "";
+  document.getElementById("equipes-logo").value = e.logo_url || "";
   fillCompetitionSelect(document.getElementById("equipes-competition"), e.sport_id, e.competition_id);
   document.getElementById("form-equipes-title").textContent = "Modifier l'équipe";
   document.getElementById("equipes-cancel").style.display = "inline-flex";
@@ -355,7 +418,8 @@ function initEquipesForm() {
       nom: document.getElementById("equipes-nom").value.trim(),
       sport_id: document.getElementById("equipes-sport").value,
       pays: document.getElementById("equipes-pays").value || null,
-      competition_id: document.getElementById("equipes-competition").value || null
+      competition_id: document.getElementById("equipes-competition").value || null,
+      logo_url: document.getElementById("equipes-logo").value.trim() || null
     };
     const query = id
       ? supabaseClient.from("equipes").update(payload).eq("id", id)
@@ -373,12 +437,15 @@ function initEquipesForm() {
 // Rafraîchit les 4 listes déroulantes d'équipes (Matchs + Pronostics)
 // après un ajout/modification/suppression dans l'onglet Équipes.
 function refreshAllEquipeSelects() {
-  fillEquipeSelect(document.getElementById("matchs-equipe1"), document.getElementById("matchs-sport").value);
-  fillEquipeSelect(document.getElementById("matchs-equipe2"), document.getElementById("matchs-sport").value);
-  fillEquipeSelect(document.getElementById("pronostics-equipe1"), document.getElementById("pronostics-sport").value);
-  fillEquipeSelect(document.getElementById("pronostics-equipe2"), document.getElementById("pronostics-sport").value);
+  ["matchs", "pronostics"].forEach((prefix) => {
+    const sportSel = document.getElementById(prefix + "-sport");
+    const compSel = document.getElementById(prefix + "-competition");
+    const paysSel = document.getElementById(prefix + "-pays");
+    const extra = { competitionId: compSel.value || null, pays: paysSel ? paysSel.value : "" };
+    fillEquipeSelect(document.getElementById(prefix + "-equipe1"), sportSel.value, document.getElementById(prefix + "-equipe1").value, extra);
+    fillEquipeSelect(document.getElementById(prefix + "-equipe2"), sportSel.value, document.getElementById(prefix + "-equipe2").value, extra);
+  });
 }
-
 function renderCompetitionsList() {
   const mount = document.getElementById("list-competitions");
   if (!allCompetitions.length) {
@@ -412,6 +479,7 @@ function editCompetition(id) {
   document.getElementById("competitions-nom").value = c.nom;
   document.getElementById("competitions-sport").value = c.sport_id;
   document.getElementById("competitions-pays").value = c.pays || "";
+  document.getElementById("competitions-logo").value = c.logo_url || "";
   document.getElementById("competitions-ordre").value = c.ordre_affichage;
   document.getElementById("competitions-actif").value = String(c.actif);
   document.getElementById("form-competitions-title").textContent = "Modifier la compétition";
@@ -426,6 +494,18 @@ function resetCompetitionForm() {
   document.getElementById("competitions-cancel").style.display = "none";
 }
 
+// Après un ajout/modification/suppression de compétition, on rafraîchit
+// aussi les selects "compétition" de Matchs/Pronostics (pilotés par
+// initFormCascade), en conservant le filtre pays éventuellement actif.
+function refreshCascadeCompetitions() {
+  ["matchs", "pronostics"].forEach((prefix) => {
+    const sportSel = document.getElementById(prefix + "-sport");
+    const compSel = document.getElementById(prefix + "-competition");
+    const paysSel = document.getElementById(prefix + "-pays");
+    fillCompetitionSelect(compSel, sportSel.value, compSel.value, paysSel ? paysSel.value : "");
+  });
+}
+
 async function deleteCompetition(id) {
   if (!confirm("Supprimer définitivement cette compétition ?")) return;
   const { error } = await supabaseClient.from("competitions").delete().eq("id", id);
@@ -433,6 +513,7 @@ async function deleteCompetition(id) {
   showToast("Compétition supprimée.");
   await loadCompetitions();
   populateCompetitionSelects();
+  refreshCascadeCompetitions();
 }
 
 function initCompetitionsForm() {
@@ -443,6 +524,7 @@ function initCompetitionsForm() {
       nom: document.getElementById("competitions-nom").value.trim(),
       sport_id: document.getElementById("competitions-sport").value,
       pays: document.getElementById("competitions-pays").value.trim() || null,
+      logo_url: document.getElementById("competitions-logo").value.trim() || null,
       ordre_affichage: Number(document.getElementById("competitions-ordre").value) || 0,
       actif: document.getElementById("competitions-actif").value === "true"
     };
@@ -455,6 +537,7 @@ function initCompetitionsForm() {
     resetCompetitionForm();
     await loadCompetitions();
     populateCompetitionSelects();
+    refreshCascadeCompetitions();
   });
   document.getElementById("competitions-cancel").addEventListener("click", resetCompetitionForm);
 }
@@ -497,14 +580,17 @@ function renderPronosticsList() {
   mount.querySelectorAll("[data-delete]").forEach((btn) => btn.addEventListener("click", () => deletePronostic(btn.dataset.delete)));
 }
 
+
 function editPronostic(id) {
   const p = allPronostics.find((x) => x.id === id);
   if (!p) return;
+  const comp = allCompetitions.find((c) => c.id === p.competition_id);
   document.getElementById("pronostics-id").value = p.id;
   document.getElementById("pronostics-sport").value = p.sport_id;
   fillCompetitionSelect(document.getElementById("pronostics-competition"), p.sport_id, p.competition_id);
-  setEquipeFieldValue("pronostics-equipe1", "pronostics-equipe1-autre", p.sport_id, p.equipe1);
-  setEquipeFieldValue("pronostics-equipe2", "pronostics-equipe2-autre", p.sport_id, p.equipe2);
+  document.getElementById("pronostics-pays").value = (comp && comp.pays) || "";
+  setEquipeFieldValue("pronostics-equipe1", "pronostics-equipe1-autre", p.sport_id, p.equipe1, { competitionId: p.competition_id, pays: (comp && comp.pays) || "" });
+  setEquipeFieldValue("pronostics-equipe2", "pronostics-equipe2-autre", p.sport_id, p.equipe2, { competitionId: p.competition_id, pays: (comp && comp.pays) || "" });
   document.getElementById("pronostics-date").value = p.date_match;
   document.getElementById("pronostics-heure").value = p.heure_match || "";
   document.getElementById("pronostics-pick").value = p.pronostic;
@@ -521,12 +607,12 @@ function editPronostic(id) {
 function resetPronosticForm() {
   document.getElementById("form-pronostics").reset();
   document.getElementById("pronostics-id").value = "";
+  fillCompetitionSelect(document.getElementById("pronostics-competition"), document.getElementById("pronostics-sport").value);
   fillEquipeSelect(document.getElementById("pronostics-equipe1"), document.getElementById("pronostics-sport").value);
   fillEquipeSelect(document.getElementById("pronostics-equipe2"), document.getElementById("pronostics-sport").value);
   document.getElementById("form-pronostics-title").textContent = "Ajouter un pronostic";
   document.getElementById("pronostics-cancel").style.display = "none";
 }
-
 async function deletePronostic(id) {
   if (!confirm("Supprimer définitivement ce pronostic ?")) return;
   const { error } = await supabaseClient.from("pronostics").delete().eq("id", id);
@@ -817,8 +903,8 @@ function editMatch(id) {
   document.getElementById("matchs-sport").value = m.sport_id;
   fillCompetitionSelect(document.getElementById("matchs-competition"), m.sport_id, m.competition_id);
   document.getElementById("matchs-pays").value = m.pays || "";
-  setEquipeFieldValue("matchs-equipe1", "matchs-equipe1-autre", m.sport_id, m.equipe1);
-  setEquipeFieldValue("matchs-equipe2", "matchs-equipe2-autre", m.sport_id, m.equipe2);
+  setEquipeFieldValue("matchs-equipe1", "matchs-equipe1-autre", m.sport_id, m.equipe1, { competitionId: m.competition_id, pays: m.pays || "" });
+  setEquipeFieldValue("matchs-equipe2", "matchs-equipe2-autre", m.sport_id, m.equipe2, { competitionId: m.competition_id, pays: m.pays || "" });
   document.getElementById("matchs-date").value = m.date_match;
   document.getElementById("matchs-heure").value = m.heure_match || "";
   document.getElementById("matchs-statut").value = m.statut;
@@ -830,12 +916,12 @@ function editMatch(id) {
 function resetMatchForm() {
   document.getElementById("form-matchs").reset();
   document.getElementById("matchs-id").value = "";
+  fillCompetitionSelect(document.getElementById("matchs-competition"), document.getElementById("matchs-sport").value);
   fillEquipeSelect(document.getElementById("matchs-equipe1"), document.getElementById("matchs-sport").value);
   fillEquipeSelect(document.getElementById("matchs-equipe2"), document.getElementById("matchs-sport").value);
   document.getElementById("form-matchs-title").textContent = "Ajouter un match";
   document.getElementById("matchs-cancel").style.display = "none";
 }
-
 async function deleteMatch(id) {
   if (!confirm("Supprimer définitivement ce match ? Son score éventuel sera supprimé aussi.")) return;
   const { error } = await supabaseClient.from("matchs").delete().eq("id", id);
