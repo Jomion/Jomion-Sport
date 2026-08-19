@@ -78,8 +78,12 @@
             <select id="competitions-sport" required></select>
           </div>
           <div class="form-field">
-            <label for="competitions-pays">Pays (facultatif)</label>
+             <label for="competitions-pays">Pays (facultatif)</label>
             <input type="text" id="competitions-pays" placeholder="Ex. Angleterre">
+          </div>
+          <div class="form-field">
+            <label for="competitions-logo">Logo (URL, facultatif)</label>
+            <input type="text" id="competitions-logo" placeholder="https://…">
           </div>
           <div class="form-field">
             <label for="competitions-ordre">Ordre de défilement</label>
@@ -114,11 +118,15 @@
             <select id="pronostics-sport" required></select>
           </div>
           <div class="form-field">
-            <label for="pronostics-competition">Compétition</label>
+                        <label for="pronostics-competition">Compétition</label>
             <select id="pronostics-competition"></select>
           </div>
           <div class="form-field">
-            <label for="pronostics-equipe1">Équipe / joueur 1</label>
+            <label for="pronostics-pays">Pays (facultatif — filtre les équipes)</label>
+            <select id="pronostics-pays" class="pays-select"></select>
+          </div>
+          <div class="form-field">
+            <label for="pronostics-equipe1">Équipe / joueur 1</label>   
             <select id="pronostics-equipe1"></select>
             <input type="text" id="pronostics-equipe1-autre" placeholder="Absent de la liste ? Saisissez le nom ici" style="margin-top:6px;">
           </div>
@@ -409,6 +417,10 @@
           <div class="form-field">
             <label for="equipes-competition">Compétition (facultatif)</label>
             <select id="equipes-competition"></select>
+          </div>
+          <div class="form-field">
+            <label for="equipes-logo">Logo (URL, facultatif)</label>
+            <input type="text" id="equipes-logo" placeholder="https://…">
           </div>
         </div>
         <div class="admin-form-actions">
