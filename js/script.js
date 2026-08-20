@@ -268,7 +268,6 @@ function renderArticleCard(a) {
       </div>
     </article>`;
 }
-}
 
 function emptyState(message) {
   return `<div class="empty-state"><strong>Rien à afficher pour le moment</strong>${escapeHTML(message)}</div>`;
