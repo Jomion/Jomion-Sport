@@ -398,14 +398,12 @@ async function fetchAnalysesFromSupabase(limit) {
       .order("date_publication", { ascending: false });
     if (limit) query = query.limit(limit);
     const { data, error } = await query;
-         const { data, error } = await query;
     if (error) throw error;
     return (data || []).map(mapAnalyseFromSupabase);
   } catch (err) {
     console.warn("Supabase indisponible pour les analyses, utilisation des données de secours.", err);
     return null;
   }
-}
 
 async function mountLists() {
   // Une page peut afficher plusieurs blocs de pronostics (ex. l'accueil :
