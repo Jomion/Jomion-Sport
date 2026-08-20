@@ -176,6 +176,45 @@ function escapeHTMLMultiline(str) {
   return escapeHTML(str).replace(/\n/g, "<br>");
 }
 
+/* Simplifie un nom pour le comparer sans se soucier des accents/
+   majuscules/espaces (ex. "Atlético Madrid" ↔ "atletico-madrid"). */
+function normaliserNom(str) {
+  return (str || "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+/* ---------------------------------------------------------
+   LOGOS D'ÉQUIPES (table "equipes" de Supabase)
+   -----------------------------------------------------------
+   Les pronostics/matchs/scores stockent les noms d'équipes en
+   texte libre (pas de lien direct vers la table "equipes"), donc
+   on récupère une seule fois la liste "nom → logo" et on la
+   réutilise pour retrouver le bon logo par correspondance de nom.
+   --------------------------------------------------------- */
+
+let _equipesLogosCache = null;
+
+async function fetchEquipesLogos() {
+  if (_equipesLogosCache) return _equipesLogosCache;
+  _equipesLogosCache = new Map();
+  if (typeof supabaseClient === "undefined") return _equipesLogosCache;
+  try {
+    const { data, error } = await supabaseClient
+      .from("equipes")
+      .select("nom, logo_url")
+      .not("logo_url", "is", null);
+    if (error) throw error;
+    (data || []).forEach((e) => {
+      if (e.logo_url) _equipesLogosCache.set(normaliserNom(e.nom), e.logo_url);
+    });
+  } catch (err) {
+    console.warn("Supabase indisponible pour les logos d'équipes.", err);
+  }
+  return _equipesLogosCache;
+}
+
 /* ---------------------------------------------------------
    4. GÉNÉRATION DES CARTES "BILLET DE MATCH"
    --------------------------------------------------------- */
@@ -185,7 +224,7 @@ function renderTicketCard(p) {
   return `
     <article class="ticket-card" data-sport="${sportSlug(p.sport)}">
       <div class="ticket-card__top">
-        <span class="ticket-card__competition">${escapeHTML(p.competition)}</span>
+        <span class="ticket-card__competition">${p.competitionLogo ? `<img src="${escapeHTML(p.competitionLogo)}" alt="" class="competition-logo" loading="lazy">` : ""}${escapeHTML(p.competition)}</span>
         <span>${escapeHTML(p.date)} · ${escapeHTML(p.heure)}</span>
       </div>
       <div class="ticket-card__body">
@@ -194,9 +233,9 @@ function renderTicketCard(p) {
           ${p.statut ? `<span class="status-badge ${statutClass(p.statut)}">${escapeHTML(p.statut)}</span>` : ""}
         </div>
         <div class="ticket-card__teams">
-          <span>${escapeHTML(p.equipe1)}</span>
+          <span>${p.equipe1Logo ? `<img src="${escapeHTML(p.equipe1Logo)}" alt="" class="team-logo" loading="lazy">` : ""}${escapeHTML(p.equipe1)}</span>
           <span class="vs">vs</span>
-          <span>${escapeHTML(p.equipe2)}</span>
+          <span>${p.equipe2Logo ? `<img src="${escapeHTML(p.equipe2Logo)}" alt="" class="team-logo" loading="lazy">` : ""}${escapeHTML(p.equipe2)}</span>
         </div>
         <div class="ticket-card__pick">
           <strong>Pronostic :</strong> ${escapeHTML(p.pronostic)}
@@ -228,6 +267,7 @@ function renderArticleCard(a) {
         <a href="actualites.html" class="btn btn--outline" style="align-self:flex-start;">Lire l'article</a>
       </div>
     </article>`;
+}
 }
 
 function emptyState(message) {
@@ -269,12 +309,15 @@ function formatHeure(heure) {
   return heure ? heure.slice(0, 5) : "";
 }
 
-function mapPronosticFromSupabase(row) {
+function mapPronosticFromSupabase(row, logos) {
   return {
     sport: (row.sports && row.sports.nom) || "",
     competition: (row.competitions && row.competitions.nom) || "",
+    competitionLogo: (row.competitions && row.competitions.logo_url) || "",
     equipe1: row.equipe1,
+    equipe1Logo: (logos && logos.get(normaliserNom(row.equipe1))) || "",
     equipe2: row.equipe2,
+    equipe2Logo: (logos && logos.get(normaliserNom(row.equipe2))) || "",
     date: formatDateFr(row.date_match),
     heure: formatHeure(row.heure_match),
     pronostic: row.pronostic,
@@ -298,19 +341,19 @@ function mapArticleFromSupabase(row) {
   };
 }
 
-
 async function fetchPronosticsFromSupabase(limit) {
   if (typeof supabaseClient === "undefined") return null;
   try {
+    const logos = await fetchEquipesLogos();
     let query = supabaseClient
       .from("pronostics")
-      .select("*, sports(nom, icone), competitions(nom)")
+      .select("*, sports(nom, icone), competitions(nom, logo_url)")
       .eq("publie", true)
       .order("date_match", { ascending: true });
     if (limit) query = query.limit(limit);
     const { data, error } = await query;
     if (error) throw error;
-    return (data || []).map(mapPronosticFromSupabase);
+    return (data || []).map((row) => mapPronosticFromSupabase(row, logos));
   } catch (err) {
     console.warn("Supabase indisponible pour les pronostics, utilisation des données de secours.", err);
     return null;
@@ -356,6 +399,7 @@ async function fetchAnalysesFromSupabase(limit) {
       .order("date_publication", { ascending: false });
     if (limit) query = query.limit(limit);
     const { data, error } = await query;
+         const { data, error } = await query;
     if (error) throw error;
     return (data || []).map(mapAnalyseFromSupabase);
   } catch (err) {
@@ -469,13 +513,16 @@ async function renderTicker() {
    Supabase → Table Editor ou SQL Editor.
    --------------------------------------------------------- */
 
-function mapMatchFromSupabase(row) {
+function mapMatchFromSupabase(row, logos) {
   return {
     sport: (row.sports && row.sports.nom) || "",
     competition: (row.competitions && row.competitions.nom) || "",
+    competitionLogo: (row.competitions && row.competitions.logo_url) || "",
     pays: row.pays || "",
     equipe1: row.equipe1,
+    equipe1Logo: (logos && logos.get(normaliserNom(row.equipe1))) || "",
     equipe2: row.equipe2,
+    equipe2Logo: (logos && logos.get(normaliserNom(row.equipe2))) || "",
     date: formatDateFr(row.date_match),
     dateIso: row.date_match,
     heure: formatHeure(row.heure_match),
@@ -486,13 +533,14 @@ function mapMatchFromSupabase(row) {
 async function fetchMatchsAVenir() {
   if (typeof supabaseClient === "undefined") return [];
   try {
+    const logos = await fetchEquipesLogos();
     const { data, error } = await supabaseClient
       .from("matchs")
-      .select("*, sports(nom, icone), competitions(nom)")
+      .select("*, sports(nom, icone), competitions(nom, logo_url)")
       .in("statut", ["à venir", "en cours"])
       .order("date_match", { ascending: true });
     if (error) throw error;
-    return (data || []).map(mapMatchFromSupabase);
+    return (data || []).map((row) => mapMatchFromSupabase(row, logos));
   } catch (err) {
     console.warn("Supabase indisponible pour les matchs.", err);
     return [];
@@ -507,9 +555,9 @@ function renderMatchCard(m) {
         <span class="status-badge ${statutClass(m.statut)}">${escapeHTML(m.statut)}</span>
       </div>
       <div class="match-card__body">
-        <div class="match-card__competition">${escapeHTML(m.competition)}${m.pays ? " · " + escapeHTML(m.pays) : ""}</div>
+        <div class="match-card__competition">${m.competitionLogo ? `<img src="${escapeHTML(m.competitionLogo)}" alt="" class="competition-logo" loading="lazy">` : ""}${escapeHTML(m.competition)}${m.pays ? " · " + escapeHTML(m.pays) : ""}</div>
         <div class="match-card__teams">
-          <span>${escapeHTML(m.equipe1)}</span><span class="vs">vs</span><span>${escapeHTML(m.equipe2)}</span>
+          <span>${m.equipe1Logo ? `<img src="${escapeHTML(m.equipe1Logo)}" alt="" class="team-logo" loading="lazy">` : ""}${escapeHTML(m.equipe1)}</span><span class="vs">vs</span><span>${m.equipe2Logo ? `<img src="${escapeHTML(m.equipe2Logo)}" alt="" class="team-logo" loading="lazy">` : ""}${escapeHTML(m.equipe2)}</span>
         </div>
         <div class="match-card__meta">${escapeHTML(m.date)}${m.heure ? " · " + escapeHTML(m.heure) : ""}</div>
       </div>
@@ -609,13 +657,332 @@ async function initMatchsPage() {
    PAGE SCORES — liste des matchs terminés avec résultat
    --------------------------------------------------------- */
 
-function mapScoreFromSupabase(row) {
+function mapScoreFromSupabase(row, logos) {
   const s = Array.isArray(row.scores) ? row.scores[0] : row.scores;
   return {
+       return {
     sport: (row.sports && row.sports.nom) || "",
     competition: (row.competitions && row.competitions.nom) || "",
+    competitionLogo: (row.competitions && row.competitions.logo_url) || "",
     pays: row.pays || "",
     equipe1: row.equipe1,
+    equipe1Logo: (logos && logos.get(normaliserNom(row.equipe1))) || "",
     equipe2: row.equipe2,
+    equipe2Logo: (logos && logos.get(normaliserNom(row.equipe2))) || "",
     date: formatDateFr(row.date_match),
     dateIso: row.date_match,
+    score1: s ? s.score_equipe1 : null,
+    score2: s ? s.score_equipe2 : null,
+    mt1: s ? s.score_mt_equipe1 : null,
+    mt2: s ? s.score_mt_equipe2 : null
+  };
+}
+
+async function fetchScoresTermines() {
+  if (typeof supabaseClient === "undefined") return [];
+  try {
+    const logos = await fetchEquipesLogos();
+    const { data, error } = await supabaseClient
+      .from("matchs")
+      .select("*, sports(nom, icone), competitions(nom, logo_url), scores(score_equipe1, score_equipe2, score_mt_equipe1, score_mt_equipe2)")
+      .eq("statut", "terminé")
+      .order("date_match", { ascending: false });
+    if (error) throw error;
+    return (data || []).map((row) => mapScoreFromSupabase(row, logos));
+  } catch (err) {
+    console.warn("Supabase indisponible pour les scores.", err);
+    return [];
+  }
+}
+
+function renderScoreCard(m) {
+  const aScore = m.score1 !== null && m.score1 !== undefined;
+  return `
+    <article class="match-card score-card" data-sport="${sportSlug(m.sport)}" data-pays="${escapeHTML(m.pays)}" data-competition="${escapeHTML(m.competition)}" data-date="${escapeHTML(m.dateIso)}">
+      <div class="match-card__top">
+        <span class="sport-badge">${sportIcon(m.sport)} ${escapeHTML(m.sport)}</span>
+        <span class="status-badge is-termine">Terminé</span>
+      </div>
+      <div class="match-card__body">
+        <div class="match-card__competition">${m.competitionLogo ? `<img src="${escapeHTML(m.competitionLogo)}" alt="" class="competition-logo" loading="lazy">` : ""}${escapeHTML(m.competition)}${m.pays ? " · " + escapeHTML(m.pays) : ""}</div>
+        <div class="match-card__teams">
+          <span>${m.equipe1Logo ? `<img src="${escapeHTML(m.equipe1Logo)}" alt="" class="team-logo" loading="lazy">` : ""}${escapeHTML(m.equipe1)}</span><span class="vs">vs</span><span>${m.equipe2Logo ? `<img src="${escapeHTML(m.equipe2Logo)}" alt="" class="team-logo" loading="lazy">` : ""}${escapeHTML(m.equipe2)}</span>
+        </div>
+        ${aScore ? `
+        <div class="score-card__score">
+          <span>${escapeHTML(m.score1)}</span><span class="separateur">–</span><span>${escapeHTML(m.score2)}</span>
+        </div>
+        ${m.mt1 !== null && m.mt1 !== undefined ? `<div class="score-card__mt">Mi-temps : ${escapeHTML(m.mt1)} – ${escapeHTML(m.mt2)}</div>` : ""}
+        ` : `<p class="match-card__meta">Score non renseigné.</p>`}
+        <div class="match-card__meta">${escapeHTML(m.date)}</div>
+      </div>
+    </article>`;
+}
+
+async function initScoresPage() {
+  const mount = document.getElementById("scores-liste");
+  if (!mount) return;
+
+  const scores = await fetchScoresTermines();
+  mount.innerHTML = scores.length
+    ? scores.map(renderScoreCard).join("")
+    : emptyState("Aucun résultat pour le moment.");
+
+  const tabs = document.querySelector(".sport-tabs");
+  const paysSelect = document.getElementById("filtre-pays");
+  const competitionSelect = document.getElementById("filtre-competition");
+  const dateSelect = document.getElementById("filtre-date");
+
+  fillFilterSelect(paysSelect, scores.map((m) => m.pays), "Tous les pays");
+  fillFilterSelect(competitionSelect, scores.map((m) => m.competition), "Toutes les compétitions");
+  fillFilterSelect(dateSelect, scores.map((m) => m.dateIso), "Toutes les dates");
+
+  [paysSelect, competitionSelect, dateSelect].forEach((sel) => {
+    sel.addEventListener("change", () => applyCardFilters(mount, tabs));
+  });
+  if (tabs) {
+    tabs.querySelectorAll(".sport-tab").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        tabs.querySelectorAll(".sport-tab").forEach((b) => {
+          b.classList.toggle("is-active", b === btn);
+          b.setAttribute("aria-selected", String(b === btn));
+        });
+        history.replaceState(null, "", "#" + btn.dataset.sportFilter);
+        applyCardFilters(mount, tabs);
+      });
+    });
+  }
+  setActiveTabFromHash(tabs);
+  applyCardFilters(mount, tabs);
+}
+
+/* ---------------------------------------------------------
+   PAGE COMPÉTITIONS — liste publique des compétitions actives
+   --------------------------------------------------------- */
+
+function mapCompetitionFromSupabase(row) {
+  return {
+    nom: row.nom,
+    logo: row.logo_url || "",
+    sport: (row.sports && row.sports.nom) || "",
+    pays: row.pays || ""
+  };
+}
+
+async function fetchCompetitionsPublic() {
+  if (typeof supabaseClient === "undefined") return [];
+  try {
+    const { data, error } = await supabaseClient
+      .from("competitions")
+      .select("*, sports(nom, icone)")
+      .eq("actif", true)
+      .order("ordre_affichage", { ascending: true });
+    if (error) throw error;
+    return (data || []).map(mapCompetitionFromSupabase);
+  } catch (err) {
+    console.warn("Supabase indisponible pour les compétitions.", err);
+    return [];
+  }
+}
+
+function renderCompetitionCard(c) {
+  return `
+    <article class="match-card" data-sport="${sportSlug(c.sport)}" data-pays="${escapeHTML(c.pays)}">
+      <div class="match-card__top">
+        <span class="sport-badge">${sportIcon(c.sport)} ${escapeHTML(c.sport)}</span>
+      </div>
+            </div>
+      <div class="match-card__body">
+        <div class="match-card__teams" style="font-size:1.1rem;">${c.logo ? `<img src="${escapeHTML(c.logo)}" alt="" class="competition-logo" loading="lazy">` : ""}${escapeHTML(c.nom)}</div>
+        ${c.pays ? `<div class="match-card__meta">${escapeHTML(c.pays)}</div>` : ""}
+      </div>
+    </article>`;
+}
+
+async function initCompetitionsPage() {
+  const mount = document.getElementById("competitions-liste");
+  if (!mount) return;
+
+  const competitions = await fetchCompetitionsPublic();
+  mount.innerHTML = competitions.length
+    ? competitions.map(renderCompetitionCard).join("")
+    : emptyState("Aucune compétition pour le moment.");
+
+  const tabs = document.querySelector(".sport-tabs");
+  const paysSelect = document.getElementById("filtre-pays");
+  if (paysSelect) {
+    fillFilterSelect(paysSelect, competitions.map((c) => c.pays), "Tous les pays");
+    paysSelect.addEventListener("change", () => applyCardFilters(mount, tabs));
+  }
+  if (tabs) {
+    tabs.querySelectorAll(".sport-tab").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        tabs.querySelectorAll(".sport-tab").forEach((b) => {
+          b.classList.toggle("is-active", b === btn);
+          b.setAttribute("aria-selected", String(b === btn));
+        });
+        history.replaceState(null, "", "#" + btn.dataset.sportFilter);
+        applyCardFilters(mount, tabs);
+      });
+    });
+  }
+  setActiveTabFromHash(tabs);
+  applyCardFilters(mount, tabs);
+}
+
+/* ---------------------------------------------------------
+   5. FILTRES PAR SPORT (onglets "Tous / Football / Basketball / Tennis")
+   --------------------------------------------------------- */
+
+function applySportFilter(mount, sport) {
+  const cards = mount.querySelectorAll(":scope > article[data-sport]");
+  let visibleCount = 0;
+  cards.forEach((card) => {
+    const match = sport === "tous" || card.dataset.sport === sport;
+    card.style.display = match ? "" : "none";
+    if (match) visibleCount++;
+  });
+  let empty = mount.querySelector(".empty-state[data-filter-empty]");
+  if (visibleCount === 0 && cards.length > 0) {
+    if (!empty) {
+      empty = document.createElement("div");
+      empty.className = "empty-state";
+      empty.setAttribute("data-filter-empty", "true");
+      empty.innerHTML = "<strong>Aucun résultat</strong>Aucun contenu pour ce sport pour le moment.";
+      mount.appendChild(empty);
+    }
+  } else if (empty) {
+    empty.remove();
+  }
+}
+
+function initSportTabs() {
+  const tabsContainers = document.querySelectorAll(".sport-tabs");
+  if (!tabsContainers.length) return;
+
+  tabsContainers.forEach((tabs) => {
+    const section = tabs.closest("section");
+    const mount = section ? section.querySelector("[data-mount][data-filterable]") : null;
+    if (!mount) return;
+
+    function selectSport(sport) {
+      tabs.querySelectorAll(".sport-tab").forEach((btn) => {
+        const isActive = btn.dataset.sportFilter === sport;
+        btn.classList.toggle("is-active", isActive);
+        btn.setAttribute("aria-selected", String(isActive));
+      });
+      applySportFilter(mount, sport);
+    }
+
+    tabs.querySelectorAll(".sport-tab").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        selectSport(btn.dataset.sportFilter);
+        history.replaceState(null, "", "#" + btn.dataset.sportFilter);
+      });
+    });
+
+    // Permet d'arriver directement filtré via un lien du type pronostics.html#basketball
+    const initial = window.location.hash.replace("#", "") || "tous";
+    const validInitial = tabs.querySelector(`[data-sport-filter="${initial}"]`) ? initial : "tous";
+    selectSport(validInitial);
+  });
+}
+
+/* ---------------------------------------------------------
+   6. NAVIGATION MOBILE
+   --------------------------------------------------------- */
+
+function initNav() {
+  const toggle = document.querySelector(".nav-toggle");
+  const nav = document.querySelector(".main-nav");
+  const backdrop = document.querySelector(".nav-backdrop");
+  if (!toggle || !nav) return;
+
+  function closeNav() {
+    nav.classList.remove("is-open");
+    backdrop && backdrop.classList.remove("is-open");
+    toggle.setAttribute("aria-expanded", "false");
+  }
+  function openNav() {
+    nav.classList.add("is-open");
+    backdrop && backdrop.classList.add("is-open");
+    toggle.setAttribute("aria-expanded", "true");
+  }
+
+  toggle.addEventListener("click", () => {
+    const isOpen = nav.classList.contains("is-open");
+    isOpen ? closeNav() : openNav();
+  });
+  backdrop && backdrop.addEventListener("click", closeNav);
+  nav.querySelectorAll("a").forEach((link) => link.addEventListener("click", closeNav));
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeNav();
+  });
+}
+
+/* ---------------------------------------------------------
+   7. ACCORDÉON (page Guide)
+   --------------------------------------------------------- */
+
+function initAccordion() {
+  document.querySelectorAll(".accordion__trigger").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const panel = document.getElementById(btn.getAttribute("aria-controls"));
+      const expanded = btn.getAttribute("aria-expanded") === "true";
+      btn.setAttribute("aria-expanded", String(!expanded));
+      if (!panel) return;
+      panel.style.maxHeight = expanded ? null : panel.scrollHeight + "px";
+    });
+  });
+}
+
+/* ---------------------------------------------------------
+   8. FORMULAIRE DE CONTACT (visuel uniquement)
+   -----------------------------------------------------------
+   GitHub Pages n'exécute pas de code côté serveur : ce
+   formulaire ne peut donc pas envoyer réellement de message.
+   Pour le rendre fonctionnel plus tard, deux options simples :
+     1) un service comme Formspree ou Getform (gratuit, sans
+        serveur à gérer) : il suffit de remplacer l'attribut
+        "action" du <form> par l'URL fournie par le service ;
+     2) un lien "mailto:" classique si vous préférez rester
+        très simple.
+   --------------------------------------------------------- */
+
+function initContactForm() {
+  const form = document.querySelector("#contact-form");
+  if (!form) return;
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const note = document.querySelector("#contact-form-note");
+    if (note) {
+      note.textContent = "Ce formulaire est une démonstration visuelle : aucun message n'est envoyé pour l'instant. Connectez un service comme Formspree pour l'activer.";
+    }
+  });
+}
+
+/* ---------------------------------------------------------
+   9. ANNÉE COURANTE DANS LE PIED DE PAGE
+   --------------------------------------------------------- */
+
+function initFooterYear() {
+  document.querySelectorAll("[data-year]").forEach((el) => {
+    el.textContent = new Date().getFullYear();
+  });
+}
+
+/* ---------------------------------------------------------
+   INITIALISATION
+   --------------------------------------------------------- */
+
+document.addEventListener("DOMContentLoaded", async () => {
+  await Promise.all([mountLists(), renderTicker()]);
+  initSportTabs();
+  await initMatchsPage();
+  await initScoresPage();
+  await initCompetitionsPage();
+  initNav();
+  initAccordion();
+  initContactForm();
+  initFooterYear();
+});
