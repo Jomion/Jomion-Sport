@@ -581,8 +581,6 @@ function setActiveTabFromHash(tabs) {
     btn.classList.toggle("is-active", active);
     btn.setAttribute("aria-selected", String(active));
   });
-}
-
 function applyCardFilters(mount, tabs) {
   const activeSport = tabs ? tabs.querySelector(".sport-tab.is-active").dataset.sportFilter : "tous";
   const pays = document.getElementById("filtre-pays");
@@ -611,7 +609,6 @@ function applyCardFilters(mount, tabs) {
   } else if (empty) {
     empty.remove();
   }
-}
 
 async function initMatchsPage() {
   const mount = document.getElementById("matchs-liste");
@@ -672,8 +669,7 @@ function mapScoreFromSupabase(row, logos) {
     mt1: s ? s.score_mt_equipe1 : null,
     mt2: s ? s.score_mt_equipe2 : null
   };
-}
-
+   
 async function fetchScoresTermines() {
   if (typeof supabaseClient === "undefined") return [];
   try {
