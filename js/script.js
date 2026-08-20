@@ -657,7 +657,6 @@ async function initMatchsPage() {
 function mapScoreFromSupabase(row, logos) {
   const s = Array.isArray(row.scores) ? row.scores[0] : row.scores;
   return {
-       return {
     sport: (row.sports && row.sports.nom) || "",
     competition: (row.competitions && row.competitions.nom) || "",
     competitionLogo: (row.competitions && row.competitions.logo_url) || "",
