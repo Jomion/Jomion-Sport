@@ -1,3 +1,4 @@
+
 /* =========================================================
    JOMION-SPORT — script.js
    JavaScript vanilla, sans dépendance externe.
@@ -2901,6 +2902,49 @@ function initFooterYear() {
         new Date().getFullYear();
 
     });
+}
+
+
+/* =========================================================
+   34. CLASSEMENT
+   ========================================================= */
+
+async function initClassementPage() {
+  const mount = document.getElementById("classement-liste");
+
+  // La page n'existe pas sur toutes les pages : aucune erreur ne doit être levée.
+  if (!mount) return;
+
+  // Le schéma de la table de classement n'étant pas défini dans ce script,
+  // on ne fait aucune requête arbitraire à Supabase. On affiche un état vide
+  // propre en attendant la définition du modèle de données.
+  mount.innerHTML = emptyState(
+    "Le classement sera disponible dès que sa source de données sera configurée."
+  );
+}
+
+
+/* =========================================================
+   35. ACTUALISATION AUTOMATIQUE
+   ========================================================= */
+
+function initAutoRefreshLive() {
+  // Actualisation uniquement si un conteneur de matchs est présent.
+  const mount = document.getElementById("matchs-liste");
+  if (!mount) return;
+
+  // Évite de créer plusieurs timers si le script est chargé deux fois.
+  if (window.__jomionSportRefreshTimer) {
+    clearInterval(window.__jomionSportRefreshTimer);
+  }
+
+  window.__jomionSportRefreshTimer = window.setInterval(async () => {
+    try {
+      await initMatchsPage();
+    } catch (error) {
+      console.warn("Actualisation des matchs impossible.", error);
+    }
+  }, 60000);
 }
 
 
