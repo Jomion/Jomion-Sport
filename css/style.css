@@ -333,6 +333,8 @@ button{font-family:inherit;cursor:pointer;}
 .status-badge.is-avenir{background:var(--blue-600);}
 .status-badge.is-termine{background:var(--gray-500);}
 .status-badge.is-annule{background:var(--red-600);}
+.status-badge.is-encours{background:var(--red-600);animation:pulse-live 1.6s ease-in-out infinite;}
+@keyframes pulse-live{0%,100%{opacity:1;}50%{opacity:0.55;}}
 .team-logo{width:18px;height:18px;object-fit:contain;vertical-align:middle;margin-right:4px;}
 .competition-logo{width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:4px;}
 .ticket-card__odds{font-size:0.82rem;color:var(--gray-500);margin-top:4px;}
