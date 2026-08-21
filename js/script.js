@@ -2905,128 +2905,45 @@ function initFooterYear() {
 
 
 /* =========================================================
-   34. INITIALISATION GÉNÉRALE
+   INITIALISATION GÉNÉRALE
    ========================================================= */
 
-function initAutoRefreshLive() {
-  const mount = document.getElementById("matchs-liste") || document.getElementById("scores-liste");
-  if (!mount) return;
-  setInterval(async () => {
-    const aUnMatchEnCours = mount.querySelector(".status-badge.is-encours");
-    if (!aUnMatchEnCours) return; // rien en direct : pas besoin de rafraîchir
-    if (document.getElementById("matchs-liste")) await initMatchsPage();
-    if (document.getElementById("scores-liste")) await initScoresPage();
-  }, 60000);
-}
-/* ---------------------------------------------------------
-   PAGE CLASSEMENT
-   --------------------------------------------------------- */
-
-async function fetchCompetitionsAvecClassement() {
-  if (typeof supabaseClient === "undefined") return [];
-  const { data } = await supabaseClient
-    .from("classements")
-    .select("competition_id, competitions(nom)")
-    .order("competition_id");
-  const vues = new Map();
-  (data || []).forEach((l) => {
-    if (l.competitions?.nom) vues.set(l.competition_id, l.competitions.nom);
-  });
-  return Array.from(vues, ([id, nom]) => ({ id, nom }));
-}
-
-async function fetchClassement(competitionId) {
-  if (typeof supabaseClient === "undefined") return [];
-  const { data } = await supabaseClient
-    .from("classements")
-    .select("*")
-    .eq("competition_id", competitionId)
-    .order("position", { ascending: true });
-  return data || [];
-}
-
-function renderClassementTable(lignes) {
-  if (!lignes.length) return emptyState("Classement non disponible pour le moment.");
-  return `
-    <table class="classement-table">
-      <thead>
-        <tr>
-          <th>#</th><th>Équipe</th><th>J</th><th>V</th><th>N</th><th>D</th><th>BP</th><th>BC</th><th>Diff</th><th>Pts</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${lignes.map((l) => `
-          <tr>
-            <td>${escapeHTML(l.position)}</td>
-            <td>${escapeHTML(l.equipe)}</td>
-            <td>${escapeHTML(l.joues)}</td>
-            <td>${escapeHTML(l.victoires)}</td>
-            <td>${escapeHTML(l.nuls)}</td>
-            <td>${escapeHTML(l.defaites)}</td>
-            <td>${escapeHTML(l.buts_pour)}</td>
-            <td>${escapeHTML(l.buts_contre)}</td>
-            <td>${escapeHTML(l.difference)}</td>
-            <td class="points">${escapeHTML(l.points)}</td>
-          </tr>`).join("")}
-      </tbody>
-    </table>`;
-}
-
-async function initClassementPage() {
-  const select = document.getElementById("classement-competition");
-  const contenu = document.getElementById("classement-contenu");
-  if (!select || !contenu) return;
-
-  const competitions = await fetchCompetitionsAvecClassement();
-  if (!competitions.length) {
-    contenu.innerHTML = emptyState("Aucun classement disponible pour le moment.");
-    return;
-  }
-
-  select.innerHTML = competitions.map((c) => `<option value="${c.id}">${escapeHTML(c.nom)}</option>`).join("");
-
-  async function afficherClassement(competitionId) {
-    contenu.innerHTML = `<div class="empty-state">Chargement…</div>`;
-    const lignes = await fetchClassement(competitionId);
-    contenu.innerHTML = renderClassementTable(lignes);
-  }
-
-  select.addEventListener("change", () => afficherClassement(select.value));
-  afficherClassement(select.value);
-}
 document.addEventListener("DOMContentLoaded", async () => {
-  await Promise.all([mountLists(), renderTicker()]);
-  initSportTabs();
-  await initMatchsPage();
-  await initScoresPage();
-  await initCompetitionsPage();
-  initNav();
-  initAccordion();
-  initContactForm();
-  initFooterYear();
-  initAutoRefreshLive();
-document.addEventListener("DOMContentLoaded", async () => {
-  await Promise.all([mountLists(), renderTicker()]);
-  initSportTabs();
-  await initMatchsPage();
-  await initScoresPage();
-  await initCompetitionsPage();
-  await initClassementPage();
-  initNav();
-  initAccordion();
-  initContactForm();
-  initFooterYear();
-  initAutoRefreshLive();
-});
-});
-    } catch (error) {
 
-      console.error(
-        "Erreur lors de l'initialisation de Jomion-Sport :",
-        error
-      );
+  try {
 
-    }
+    await Promise.all([
+      mountLists(),
+      renderTicker()
+    ]);
+
+    initSportTabs();
+
+    await initMatchsPage();
+
+    await initScoresPage();
+
+    await initCompetitionsPage();
+
+    await initClassementPage();
+
+    initNav();
+
+    initAccordion();
+
+    initContactForm();
+
+    initFooterYear();
+
+    initAutoRefreshLive();
+
+  } catch (error) {
+
+    console.error(
+      "Erreur lors de l'initialisation de Jomion-Sport :",
+      error
+    );
 
   }
-);
+
+});
