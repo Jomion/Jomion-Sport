@@ -129,18 +129,11 @@ function confidenceSegments(value) {
 
 function statutClass(statut) {
   const s = sportSlug(statut);
-
-  if (s.includes("termine")) {
-    return "is-termine";
-  }
-
-  if (s.includes("annule")) {
-    return "is-annule";
-  }
-
+  if (s.includes("termine")) return "is-termine";
+  if (s.includes("annule")) return "is-annule";
+  if (s.includes("encours")) return "is-encours";
   return "is-avenir";
 }
-
 
 function escapeHTML(str) {
   const div = document.createElement("div");
@@ -2915,42 +2908,29 @@ function initFooterYear() {
    34. INITIALISATION GÉNÉRALE
    ========================================================= */
 
-document.addEventListener(
-  "DOMContentLoaded",
-  async () => {
+function initAutoRefreshLive() {
+  const mount = document.getElementById("matchs-liste") || document.getElementById("scores-liste");
+  if (!mount) return;
+  setInterval(async () => {
+    const aUnMatchEnCours = mount.querySelector(".status-badge.is-encours");
+    if (!aUnMatchEnCours) return; // rien en direct : pas besoin de rafraîchir
+    if (document.getElementById("matchs-liste")) await initMatchsPage();
+    if (document.getElementById("scores-liste")) await initScoresPage();
+  }, 60000);
+}
 
-    try {
-
-      await Promise.all([
-        mountLists(),
-        renderTicker()
-      ]);
-
-
-      initSportTabs();
-
-
-      await initMatchsPage();
-
-
-      await initScoresPage();
-
-
-      await initCompetitionsPage();
-
-
-      initNav();
-
-
-      initAccordion();
-
-
-      initContactForm();
-
-
-      initFooterYear();
-
-
+document.addEventListener("DOMContentLoaded", async () => {
+  await Promise.all([mountLists(), renderTicker()]);
+  initSportTabs();
+  await initMatchsPage();
+  await initScoresPage();
+  await initCompetitionsPage();
+  initNav();
+  initAccordion();
+  initContactForm();
+  initFooterYear();
+  initAutoRefreshLive();
+});
     } catch (error) {
 
       console.error(
